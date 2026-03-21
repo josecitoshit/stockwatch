@@ -112,8 +112,8 @@ tbody tr.sel td:first-child{background:var(--bg4);}
 <div id="topbar">
   <h1>STOCK<span>WATCH</span></h1>
   <div style="display:flex;align-items:center;gap:6px;">
-    <span style="font-size:11px;color:var(--text3);font-family:var(--mono);white-space:nowrap;">FINNHUB KEY</span>
-    <input type="password" id="finnhubKey" placeholder="sk_xxxxxxxx" style="width:148px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:6px 10px;border-radius:5px;font-family:var(--mono);font-size:12px;outline:none;" />
+    <span style="font-size:11px;color:var(--text3);font-family:var(--mono);white-space:nowrap;">FMP KEY</span>
+    <input type="password" id="fmpKey" placeholder="xxxxxxxxxxxxxxxx" style="width:148px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:6px 10px;border-radius:5px;font-family:var(--mono);font-size:12px;outline:none;" />
   </div>
   <button class="btn primary" id="loadBtn" onclick="startLoad()">▶ Cargar todo</button>
   <button class="btn" onclick="openEditor()">Editar tickers</button>
@@ -164,9 +164,9 @@ tbody tr.sel td:first-child{background:var(--bg4);}
   <div id="left">
     <div id="tableWrap">
       <div id="emptyState">
-        Yahoo Finance (técnicos) + Finnhub (fundamentales)<br/>
-        Ingresá tu Finnhub key y presioná <strong>Cargar todo</strong><br/>
-        Key gratis en <a href="https://finnhub.io" target="_blank" style="color:var(--blue);">finnhub.io</a><br/><br/>
+        Yahoo Finance (técnicos) + Financial Modeling Prep (fundamentales)<br/>
+        Ingresá tu FMP key y presioná <strong>Cargar todo</strong><br/>
+        Key gratis en <a href="https://financialmodelingprep.com" target="_blank" style="color:var(--blue);">financialmodelingprep.com</a> · 250 calls/día<br/><br/>
         <button class="btn" onclick="openEditor()" style="margin:0 auto;">Ver / editar tickers →</button>
       </div>
       <table id="dataTable" style="display:none;">
@@ -444,31 +444,33 @@ function resampleWeekly(ts,o,h,l,c,v){
 }
 const last=arr=>{const a=arr.filter(v=>v!==null);return a.length?a[a.length-1]:null;};
 
-// ── FINNHUB (fundamentals only) ──
-function getFinnhubKey(){ return document.getElementById('finnhubKey').value.trim(); }
+// ── FMP (Financial Modeling Prep) — fundamentals ──
+// Direct fetch, no CORS proxy needed — FMP has proper CORS headers
+function getFmpKey(){ return document.getElementById('fmpKey').value.trim(); }
 
-async function finnhubMetrics(ticker){
-  const key = getFinnhubKey();
+async function fmpMetrics(ticker){
+  const key = getFmpKey();
   if(!key) return {};
-  const url = `https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(ticker)}&metric=all&token=${key}`;
+  // key-metrics-ttm returns all ratios in one call
+  const url = `https://financialmodelingprep.com/api/v3/key-metrics-ttm/${encodeURIComponent(ticker)}?apikey=${key}`;
   try{
     const r = await fetch(url, {signal: AbortSignal.timeout(10000)});
     if(!r.ok) throw new Error('HTTP '+r.status);
     const d = await r.json();
-    return d.metric || {};
+    // returns array, first element is TTM
+    return Array.isArray(d) && d.length ? d[0] : {};
   }catch(e){ return {}; }
 }
 
-// Throttle Finnhub calls — max 50/min
-let fhTs=[];
-async function throttledFinnhub(fn){
+// Throttle FMP — free plan: 250 calls/day, ~10/sec is safe
+let fmpTs=[];
+async function throttledFmp(fn){
   while(true){
-    const now=Date.now(); fhTs=fhTs.filter(t=>now-t<60000);
-    const lastSec=fhTs.filter(t=>now-t<1000).length;
-    if(fhTs.length<50 && lastSec<20) break;
-    await sleep(lastSec>=20 ? 100 : 400);
+    const now=Date.now(); fmpTs=fmpTs.filter(t=>now-t<1000);
+    if(fmpTs.length<8) break;
+    await sleep(150);
   }
-  fhTs.push(Date.now()); return fn();
+  fmpTs.push(Date.now()); return fn();
 }
 
 // ── LOAD ──
@@ -485,11 +487,11 @@ async function startLoad(){
 
   const tasks=tickers.map(ticker=>async()=>{
     try{
-      // Yahoo → price + OHLCV history (technicals)
-      // Finnhub → fundamentals only (1 call per ticker, no historical needed)
-      const [chart, fhMetrics] = await Promise.all([
+      // Yahoo (via proxy) → OHLCV history for technicals
+      // FMP (direct)      → all fundamentals in 1 call
+      const [chart, fmp] = await Promise.all([
         yahooFetch(ticker),
-        getFinnhubKey() ? throttledFinnhub(()=>finnhubMetrics(ticker)) : Promise.resolve({}),
+        getFmpKey() ? throttledFmp(()=>fmpMetrics(ticker)) : Promise.resolve({}),
       ]);
 
       const meta   = chart.meta||{};
@@ -507,7 +509,7 @@ async function startLoad(){
       const chg       = (price&&prevClose) ? price-prevClose : null;
       const chgPct    = (price&&prevClose) ? ((price/prevClose)-1)*100 : null;
 
-      // 52w high/low
+      // 52w high/low from daily candles
       const cutoff=Date.now()/1000-365*24*3600;
       let high52=-Infinity, low52=Infinity;
       for(let i=0;i<ts.length;i++){
@@ -528,22 +530,18 @@ async function startLoad(){
       const rsiWA=wc.length>15?calcRSI(wc):[];
       const macdWO=wc.length>30?calcMACD(wc):{macd:[],signal:[],hist:[]};
 
-      // Fundamentals from Finnhub /stock/metric
-      const m = fhMetrics;
-      const bvps    = m['bookValuePerShareAnnual'] ?? null;
-      const fcfps   = m['freeCashFlowPerShareTTM'] ?? null;
-      const pe      = m['peNormalizedAnnual'] ?? m['peBasicExclExtraTTM'] ?? null;
-      const pb      = (bvps&&price&&bvps>0) ? price/bvps : null;
-      const peg     = m['pegRatio'] ?? null;
-      const eps     = m['epsNormalizedAnnual'] ?? m['epsBasicExclExtraAnnual'] ?? null;
-      const divYield= m['dividendYieldIndicatedAnnual'] ?? null;
-      const roe     = m['roeTTM'] ?? null;
-      const roa     = m['roaTTM'] ?? null;
-      const totalDebt = m['totalDebtToTotalAsset'] ?? null; // proxy
-      const ebitda    = m['ebitdaPerShareTTM'] && price ? m['ebitdaPerShareTTM'] : null;
-      // Debt/EBITDA via Finnhub: they expose netDebt/EBITDA directly on some tickers
-      const debtEbitda = m['totalDebt/ebitdaAnnual'] ?? m['netDebt/ebitdaAnnual'] ?? null;
-      const fcfYield   = (fcfps&&price&&price>0) ? (fcfps/price)*100 : null;
+      // Fundamentals from FMP /key-metrics-ttm
+      // All fields already TTM, no calculation needed
+      const n=v=>(v!==null&&v!==undefined&&v!==0)?parseFloat(v):null;
+      const pe         = n(fmp.peRatioTTM);
+      const pb         = n(fmp.pbRatioTTM);
+      const peg        = n(fmp.pegRatioTTM);
+      const eps        = n(fmp.netIncomePerShareTTM);
+      const divYield   = fmp.dividendYieldTTM!=null ? n(fmp.dividendYieldTTM)*100 : null;
+      const roe        = fmp.roeTTM!=null            ? n(fmp.roeTTM)*100           : null;
+      const roa        = fmp.roaTTM!=null            ? n(fmp.roaTTM)*100           : null;
+      const debtEbitda = n(fmp.debtToEbitdaTTM);
+      const fcfYield   = fmp.freeCashFlowYieldTTM!=null ? n(fmp.freeCashFlowYieldTTM)*100 : null;
 
       stockData[ticker]={
         ticker, price, chg, chgPct, high52, low52, distHigh52, distLow52,
