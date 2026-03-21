@@ -108,7 +108,7 @@ tbody tr.sel td:first-child{background:var(--bg4);}
 </head>
 <body>
 <div id="app">
- 
+
 <div id="topbar">
   <h1>STOCK<span>WATCH</span></h1>
   <div style="display:flex;align-items:center;gap:6px;">
@@ -126,7 +126,7 @@ tbody tr.sel td:first-child{background:var(--bg4);}
     <span id="statusMsg" style="font-size:11px;color:var(--text3);font-family:var(--mono);"></span>
   </div>
 </div>
- 
+
 <div id="filterbar">
   <input type="text" id="filterInput" placeholder="Buscar ticker..." oninput="renderTable()"/>
   <span class="flbl">Ordenar:</span>
@@ -159,7 +159,7 @@ tbody tr.sel td:first-child{background:var(--bg4);}
   </select>
   <span id="countBadge">— acciones</span>
 </div>
- 
+
 <div id="main">
   <div id="left">
     <div id="tableWrap">
@@ -196,7 +196,7 @@ tbody tr.sel td:first-child{background:var(--bg4);}
       </table>
     </div>
   </div>
- 
+
   <div id="detail">
     <div id="detailInner">
       <div id="dHdr">
@@ -229,7 +229,7 @@ tbody tr.sel td:first-child{background:var(--bg4);}
   </div>
 </div>
 </div>
- 
+
 <div id="tickerEditor">
   <div id="tickerModal">
     <h2>Editar watchlist (máx. 100 tickers)</h2>
@@ -241,7 +241,7 @@ tbody tr.sel td:first-child{background:var(--bg4);}
     </div>
   </div>
 </div>
- 
+
 <script>
 const DEFAULT_TICKERS = `AAPL
 MSFT
@@ -342,12 +342,12 @@ ABNB
 ROKU
 PINS
 SNAP`.split('\n').map(t=>t.trim()).filter(Boolean).slice(0,100);
- 
+
 let tickers=[...DEFAULT_TICKERS], stockData={}, loading=false, selectedTicker=null, dCharts={};
 let sortKey='chgPct', sortDir='desc';
- 
+
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
- 
+
 // Simple concurrency limiter
 async function withLimit(tasks, limit=4){
   const results=[]; let i=0;
@@ -361,7 +361,7 @@ async function withLimit(tasks, limit=4){
   await Promise.all(Array.from({length:Math.min(limit,tasks.length)},worker));
   return results;
 }
- 
+
 // ── INDICATORS ──
 function calcSMA(arr,n){return arr.map((_,i)=>i<n-1?null:arr.slice(i-n+1,i+1).reduce((a,b)=>a+b,0)/n);}
 function calcEMA(arr,n){
@@ -413,18 +413,32 @@ function resampleWeekly(ts,o,h,l,c,v){
   return{t:s.map(w=>w.t),c:s.map(w=>w.c),v:s.map(w=>w.v)};
 }
 const last=arr=>{const a=arr.filter(v=>v!==null);return a.length?a[a.length-1]:null;};
- 
-// ── PROXY — allorigins.win handles both Yahoo and FMP reliably ──
+
+// ── PROXY — corsproxy.io with allorigins fallback ──
 async function proxyFetch(url){
-  // allorigins wraps response in {contents:"..."}, handles CORS for any URL
-  const wrapped = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-  const r = await fetch(wrapped, {signal: AbortSignal.timeout(15000)});
-  if(!r.ok) throw new Error('Proxy HTTP '+r.status);
-  const outer = await r.json();
-  if(!outer.contents) throw new Error('Empty proxy response');
-  return JSON.parse(outer.contents);
+  // corsproxy.io: pass URL directly after the ?
+  const proxies = [
+    `https://corsproxy.io/?${url}`,
+    `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+    `https://api.codetabs.com/v1/proxy?quest=${url}`,
+  ];
+  let lastErr;
+  for(const proxyUrl of proxies){
+    try{
+      const r = await fetch(proxyUrl, {signal: AbortSignal.timeout(15000)});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const text = await r.text();
+      // allorigins wraps in {contents:"..."}
+      if(text.includes('"contents"')){
+        const outer = JSON.parse(text);
+        if(outer.contents) return JSON.parse(outer.contents);
+      }
+      return JSON.parse(text);
+    }catch(e){ lastErr=e; }
+  }
+  throw lastErr || new Error('All proxies failed');
 }
- 
+
 async function yahooFetch(ticker){
   const p2 = Math.floor(Date.now()/1000);
   const p1 = p2 - 440*24*3600;
@@ -434,10 +448,10 @@ async function yahooFetch(ticker){
   if(!data.chart?.result?.[0]) throw new Error('No data returned');
   return data.chart.result[0];
 }
- 
+
 // ── FMP (Financial Modeling Prep) — fundamentals ──
 function getFmpKey(){ return document.getElementById('fmpKey').value.trim(); }
- 
+
 async function fmpMetrics(ticker){
   const key = getFmpKey();
   if(!key) return {};
@@ -447,7 +461,7 @@ async function fmpMetrics(ticker){
     return Array.isArray(d) && d.length ? d[0] : {};
   }catch(e){ return {}; }
 }
- 
+
 async function fmpProfile(ticker){
   const key = getFmpKey();
   if(!key) return {};
@@ -457,7 +471,7 @@ async function fmpProfile(ticker){
     return Array.isArray(d) && d.length ? d[0] : {};
   }catch(e){ return {}; }
 }
- 
+
 // Throttle FMP — 250 calls/day free, max 5/sec safe
 let fmpTs=[];
 async function throttledFmp(fn){
@@ -468,7 +482,7 @@ async function throttledFmp(fn){
   }
   fmpTs.push(Date.now()); return fn();
 }
- 
+
 // ── LOAD ──
 async function startLoad(){
   if(loading)return;
@@ -480,7 +494,7 @@ async function startLoad(){
   bar.style.display='block'; fill.style.width='0%';
   const total=tickers.length; let done=0;
   setStatus('Cargando...','loading');
- 
+
   const tasks=tickers.map(ticker=>async()=>{
     try{
       // Yahoo (via proxy) → OHLCV history for technicals
@@ -490,7 +504,7 @@ async function startLoad(){
         getFmpKey() ? throttledFmp(()=>fmpMetrics(ticker))  : Promise.resolve({}),
         getFmpKey() ? throttledFmp(()=>fmpProfile(ticker))  : Promise.resolve({}),
       ]);
- 
+
       const meta   = chart.meta||{};
       const quotes = chart.indicators?.quote?.[0]||{};
       const ts     = chart.timestamp||[];
@@ -499,13 +513,13 @@ async function startLoad(){
       const highs  = quotes.high||[];
       const lows   = quotes.low||[];
       const vols   = quotes.volume||[];
- 
+
       // Price & change
       const price     = meta.regularMarketPrice ?? last(closes);
       const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? null;
       const chg       = (price&&prevClose) ? price-prevClose : null;
       const chgPct    = (price&&prevClose) ? ((price/prevClose)-1)*100 : null;
- 
+
       // 52w high/low from daily candles
       const cutoff=Date.now()/1000-365*24*3600;
       let high52=-Infinity, low52=Infinity;
@@ -518,7 +532,7 @@ async function startLoad(){
       low52=low52===Infinity?null:low52;
       const distHigh52=(price&&high52)?((price/high52-1)*100):null;
       const distLow52=(price&&low52)?((price/low52-1)*100):null;
- 
+
       // Weekly resample → technicals
       const wk=resampleWeekly(ts,opens,highs,lows,closes,vols);
       const wc=wk.c;
@@ -526,7 +540,7 @@ async function startLoad(){
       const sma20WA=calcSMA(wc,20), sma60WA=calcSMA(wc,60);
       const rsiWA=wc.length>15?calcRSI(wc):[];
       const macdWO=wc.length>30?calcMACD(wc):{macd:[],signal:[],hist:[]};
- 
+
       // Fundamentals from FMP /ratios-ttm + /profile
       // ratios-ttm fields: https://financialmodelingprep.com/developer/docs#ratios-ttm
       const n=v=>(v!==null&&v!==undefined&&v!=='')? parseFloat(v) : null;
@@ -540,7 +554,7 @@ async function startLoad(){
       const roa       = fmpR.returnOnAssetsTTM!=null ? n(fmpR.returnOnAssetsTTM)*100 : null;
       const debtEbitda= nz(fmpR.debtToEbitdaTTM) ?? nz(fmpR.netDebtToEBITDATTM);
       const fcfYield  = fmpR.freeCashFlowYieldTTM!=null ? n(fmpR.freeCashFlowYieldTTM)*100 : null;
- 
+
       stockData[ticker]={
         ticker, price, chg, chgPct, high52, low52, distHigh52, distLow52,
         pe, pb, peg, eps, divYield, roe, roa, debtEbitda, fcfYield,
@@ -561,10 +575,10 @@ async function startLoad(){
     txt.textContent=done+' / '+total;
     renderTable();
   });
- 
+
   // 5 concurrent fetches — respectful to Yahoo + proxy
   await withLimit(tasks, 5);
- 
+
   loading=false;
   document.getElementById('loadBtn').disabled=false;
   const ok=Object.values(stockData).filter(d=>d.loaded).length;
@@ -573,11 +587,11 @@ async function startLoad(){
   bar.style.display='none';
   renderTable();
 }
- 
+
 // ── FORMAT HELPERS ──
 const fN=(v,d=2)=>{if(v===null||v===undefined)return'—';const n=parseFloat(v);return isNaN(n)?'—':n.toFixed(d);};
 const fP=v=>{if(v===null||v===undefined)return'—';return'$'+parseFloat(v).toFixed(2);};
- 
+
 function getSignal(d){
   let bull=0,bear=0;
   if(d.rsiW!==null){if(d.rsiW<30)bull+=2;else if(d.rsiW>70)bear+=2;}
@@ -586,31 +600,31 @@ function getSignal(d){
   if(d.price&&d.sma20W){if(d.price>d.sma20W)bull++;else bear++;}
   return bull>bear?'bull':bear>bull?'bear':'neutral';
 }
- 
+
 // ── RENDER TABLE ──
 function renderTable(){
   const filter=document.getElementById('filterInput').value.toLowerCase();
   sortKey=document.getElementById('sortCol').value;
   sortDir=document.getElementById('sortDir').value;
   const rsiF=document.getElementById('filterRsi').value;
- 
+
   let rows=tickers.map(t=>stockData[t]||{ticker:t,loaded:false});
   if(filter)rows=rows.filter(d=>d.ticker.toLowerCase().includes(filter));
   if(rsiF==='oversold') rows=rows.filter(d=>d.rsiW!=null&&d.rsiW<30);
   if(rsiF==='overbought')rows=rows.filter(d=>d.rsiW!=null&&d.rsiW>70);
   if(rsiF==='neutral')  rows=rows.filter(d=>d.rsiW!=null&&d.rsiW>=30&&d.rsiW<=70);
- 
+
   rows.sort((a,b)=>{
     if(sortKey==='ticker')return sortDir==='asc'?a.ticker.localeCompare(b.ticker):b.ticker.localeCompare(a.ticker);
     const va=a[sortKey]??(sortDir==='desc'?-Infinity:Infinity);
     const vb=b[sortKey]??(sortDir==='desc'?-Infinity:Infinity);
     return sortDir==='desc'?vb-va:va-vb;
   });
- 
+
   document.getElementById('countBadge').textContent=rows.length+' acciones';
   const tbody=document.getElementById('tbody');tbody.innerHTML='';
   const SK='<td><span class="skel" style="width:36px;height:9px;">&nbsp;</span></td>';
- 
+
   for(const d of rows){
     const tr=document.createElement('tr');
     if(d.ticker===selectedTicker)tr.classList.add('sel');
@@ -653,7 +667,7 @@ function renderTable(){
     tbody.appendChild(tr);
   }
 }
- 
+
 function sortBy(col){
   if(sortKey===col)document.getElementById('sortDir').value=sortDir==='desc'?'asc':'desc';
   else{document.getElementById('sortCol').value=col;document.getElementById('sortDir').value='desc';}
@@ -661,7 +675,7 @@ function sortBy(col){
   document.querySelectorAll('thead th').forEach(th=>th.classList.remove('sorted'));
   const el=document.getElementById('th-'+col);if(el)el.classList.add('sorted');
 }
- 
+
 // ── DETAIL PANEL ──
 function openDetail(ticker){
   selectedTicker=ticker;renderTable();
@@ -676,7 +690,7 @@ function openDetail(ticker){
   const ce=document.getElementById('dChg');
   ce.textContent=d.chgPct!=null?(up?'+':'')+d.chg?.toFixed(2)+'  ('+(up?'+':'')+d.chgPct.toFixed(2)+'%)':'';
   ce.style.color=up?'var(--green)':'var(--red)';
- 
+
   document.getElementById('dFund').innerHTML=[
     {l:'P/E',         v:fN(d.pe,1)},
     {l:'P/B',         v:fN(d.pb,1)},
@@ -688,7 +702,7 @@ function openDetail(ticker){
     {l:'ROE',         v:d.roe!=null?fN(d.roe,1)+'%':'—', cls:d.roe>15?'up':d.roe<0?'down':''},
     {l:'ROA',         v:d.roa!=null?fN(d.roa,1)+'%':'—', cls:d.roa>5?'up':d.roa<0?'down':''},
   ].map(f=>`<div class="fc"><div class="fl">${f.l}</div><div class="fv ${f.cls||''}">${f.v}</div></div>`).join('');
- 
+
   const p=d.price;
   document.getElementById('dTech').innerHTML=[
     {l:'RSI W(14)',  v:d.rsiW!=null?d.rsiW.toFixed(1):'—',     cls:d.rsiW<30?'up':d.rsiW>70?'down':''},
@@ -700,16 +714,16 @@ function openDetail(ticker){
     {l:'↑ Mín 52s', v:d.distLow52!=null?'+'+d.distLow52.toFixed(1)+'%':'—', sub:d.low52?'Mín: $'+d.low52.toFixed(2):''},
     {l:'MACD W',    v:d.macdW!=null?d.macdW.toFixed(3):'—',    sub:d.macdSigW!=null?'Sig: '+d.macdSigW.toFixed(3):'', cls:d.macdW&&d.macdSigW?(d.macdW>d.macdSigW?'up':'down'):''},
   ].map(f=>`<div class="fc"><div class="fl">${f.l}</div><div class="fv ${f.cls||''}">${f.v}</div>${f.sub?'<div class="fs">'+f.sub+'</div>':''}</div>`).join('');
- 
+
   buildCharts(d);
 }
- 
+
 function buildCharts(d){
   const labels=d.wTimestamps.map(t=>{const dt=new Date(t*1000);return(dt.getMonth()+1)+'/'+(dt.getFullYear()%100);});
   const CD={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
     scales:{x:{ticks:{maxTicksLimit:10,font:{size:9},color:'#4a5468'},grid:{color:'rgba(255,255,255,0.04)'}},
             y:{ticks:{font:{size:9},color:'#4a5468'},grid:{color:'rgba(255,255,255,0.04)'}}}};
- 
+
   dD('price');
   dCharts['price']=new Chart(document.getElementById('dPriceChart'),{type:'line',data:{labels,datasets:[
     {label:'Precio', data:d.wCloses,       borderColor:'#4f8ef7',borderWidth:2,  pointRadius:0,fill:false},
@@ -718,35 +732,35 @@ function buildCharts(d){
     {label:'SMA 20W',data:d.sma20WSeries,  borderColor:'#f0a500',borderWidth:1,  pointRadius:0,fill:false},
     {label:'SMA 60W',data:d.sma60WSeries,  borderColor:'#fbbf24',borderWidth:1,  pointRadius:0,borderDash:[5,3],fill:false},
   ]},options:{...CD,plugins:{legend:{display:true,labels:{font:{size:9},boxWidth:10,color:'#8892a4',padding:8}}}}});
- 
+
   dD('rsi');
   dCharts['rsi']=new Chart(document.getElementById('dRsiChart'),{type:'line',data:{labels,datasets:[
     {data:d.rsiWSeries,                  borderColor:'#a78bfa',borderWidth:1.5,pointRadius:0,fill:false},
     {data:Array(labels.length).fill(70), borderColor:'#ff4f6a',borderWidth:.8,borderDash:[4,3],pointRadius:0,fill:false},
     {data:Array(labels.length).fill(30), borderColor:'#00c98d',borderWidth:.8,borderDash:[4,3],pointRadius:0,fill:false},
   ]},options:{...CD,scales:{...CD.scales,y:{...CD.scales.y,min:0,max:100}}}});
- 
+
   dD('macd');
   dCharts['macd']=new Chart(document.getElementById('dMacdChart'),{type:'bar',data:{labels,datasets:[
     {type:'bar', data:d.macdHistWSeries,  backgroundColor:d.macdHistWSeries.map(v=>v===null?'transparent':v>=0?'rgba(0,201,141,.45)':'rgba(255,79,106,.45)'),borderRadius:1},
     {type:'line',data:d.macdWSeries,      borderColor:'#4f8ef7',borderWidth:1.5,pointRadius:0,fill:false},
     {type:'line',data:d.macdSigWSeries,   borderColor:'#ff4f6a',borderWidth:1.2,borderDash:[4,3],pointRadius:0,fill:false},
   ]},options:CD});
- 
+
   dD('vol');
   dCharts['vol']=new Chart(document.getElementById('dVolChart'),{type:'bar',data:{labels,datasets:[
     {data:d.wVolumes,backgroundColor:'rgba(79,142,247,.3)',borderRadius:1}
   ]},options:{...CD,scales:{...CD.scales,y:{...CD.scales.y,ticks:{...CD.scales.y.ticks,callback:v=>v>=1e9?(v/1e9).toFixed(1)+'B':v>=1e6?(v/1e6).toFixed(0)+'M':v}}}}});
 }
 function dD(id){if(dCharts[id]){dCharts[id].destroy();delete dCharts[id];}}
- 
+
 function closeDetail(){
   selectedTicker=null;
   document.getElementById('left').classList.remove('split');
   document.getElementById('detail').classList.remove('open');
   renderTable();
 }
- 
+
 // ── EDITOR ──
 function openEditor(){document.getElementById('tickerTA').value=tickers.join('\n');document.getElementById('tickerEditor').classList.add('open');}
 function closeEditor(){document.getElementById('tickerEditor').classList.remove('open');}
@@ -755,17 +769,16 @@ function saveEditor(){
     .map(t=>t.trim().replace(/^\$/,'').toUpperCase()).filter(Boolean))].slice(0,100);
   closeEditor();renderTable();
 }
- 
+
 function setStatus(msg,type=''){
   document.getElementById('statusMsg').textContent=msg;
   const dot=document.getElementById('statusDot');
   dot.className='';dot.id='statusDot';
   if(type)dot.classList.add(type);
 }
- 
+
 document.getElementById('tickerTA').value=DEFAULT_TICKERS.join('\n');
 renderTable();
 </script>
 </body>
 </html>
- 
