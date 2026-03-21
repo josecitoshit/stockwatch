@@ -111,6 +111,10 @@ tbody tr.sel td:first-child{background:var(--bg4);}
 
 <div id="topbar">
   <h1>STOCK<span>WATCH</span></h1>
+  <div style="display:flex;align-items:center;gap:6px;">
+    <span style="font-size:11px;color:var(--text3);font-family:var(--mono);white-space:nowrap;">FINNHUB KEY</span>
+    <input type="password" id="finnhubKey" placeholder="sk_xxxxxxxx" style="width:148px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:6px 10px;border-radius:5px;font-family:var(--mono);font-size:12px;outline:none;" />
+  </div>
   <button class="btn primary" id="loadBtn" onclick="startLoad()">▶ Cargar todo</button>
   <button class="btn" onclick="openEditor()">Editar tickers</button>
   <div id="progressWrap">
@@ -160,8 +164,9 @@ tbody tr.sel td:first-child{background:var(--bg4);}
   <div id="left">
     <div id="tableWrap">
       <div id="emptyState">
-        Sin API key · datos de Yahoo Finance · completamente gratis<br/>
-        Presioná <strong>Cargar todo</strong> para comenzar<br/><br/>
+        Yahoo Finance (técnicos) + Finnhub (fundamentales)<br/>
+        Ingresá tu Finnhub key y presioná <strong>Cargar todo</strong><br/>
+        Key gratis en <a href="https://finnhub.io" target="_blank" style="color:var(--blue);">finnhub.io</a><br/><br/>
         <button class="btn" onclick="openEditor()" style="margin:0 auto;">Ver / editar tickers →</button>
       </div>
       <table id="dataTable" style="display:none;">
@@ -371,14 +376,6 @@ async function yahooFetch(ticker){
   return data.chart.result[0];
 }
 
-async function yahooSummary(ticker){
-  const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=summaryDetail,financialData,defaultKeyStatistics`;
-  try{
-    const data = await proxyFetch(url);
-    return data.quoteSummary?.result?.[0] || {};
-  }catch(e){ return {}; }
-}
-
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 
 // Simple concurrency limiter — max N simultaneous fetches
@@ -447,6 +444,33 @@ function resampleWeekly(ts,o,h,l,c,v){
 }
 const last=arr=>{const a=arr.filter(v=>v!==null);return a.length?a[a.length-1]:null;};
 
+// ── FINNHUB (fundamentals only) ──
+function getFinnhubKey(){ return document.getElementById('finnhubKey').value.trim(); }
+
+async function finnhubMetrics(ticker){
+  const key = getFinnhubKey();
+  if(!key) return {};
+  const url = `https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(ticker)}&metric=all&token=${key}`;
+  try{
+    const r = await fetch(url, {signal: AbortSignal.timeout(10000)});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d = await r.json();
+    return d.metric || {};
+  }catch(e){ return {}; }
+}
+
+// Throttle Finnhub calls — max 50/min
+let fhTs=[];
+async function throttledFinnhub(fn){
+  while(true){
+    const now=Date.now(); fhTs=fhTs.filter(t=>now-t<60000);
+    const lastSec=fhTs.filter(t=>now-t<1000).length;
+    if(fhTs.length<50 && lastSec<20) break;
+    await sleep(lastSec>=20 ? 100 : 400);
+  }
+  fhTs.push(Date.now()); return fn();
+}
+
 // ── LOAD ──
 async function startLoad(){
   if(loading)return;
@@ -456,34 +480,35 @@ async function startLoad(){
   document.getElementById('dataTable').style.display='table';
   const bar=document.getElementById('progressBar'),fill=document.getElementById('progressFill'),txt=document.getElementById('progressText');
   bar.style.display='block'; fill.style.width='0%';
-  const total=tickers.length;let done=0;
+  const total=tickers.length; let done=0;
   setStatus('Cargando...','loading');
 
   const tasks=tickers.map(ticker=>async()=>{
     try{
-      // Fetch chart data (OHLCV + basic quote) and summary (fundamentals) in parallel
-      const [chart, summary] = await Promise.all([
+      // Yahoo → price + OHLCV history (technicals)
+      // Finnhub → fundamentals only (1 call per ticker, no historical needed)
+      const [chart, fhMetrics] = await Promise.all([
         yahooFetch(ticker),
-        yahooSummary(ticker).catch(()=>({}))
+        getFinnhubKey() ? throttledFinnhub(()=>finnhubMetrics(ticker)) : Promise.resolve({}),
       ]);
 
-      const meta = chart.meta||{};
+      const meta   = chart.meta||{};
       const quotes = chart.indicators?.quote?.[0]||{};
-      const ts = chart.timestamp||[];
+      const ts     = chart.timestamp||[];
       const closes = quotes.close||[];
       const opens  = quotes.open||[];
       const highs  = quotes.high||[];
       const lows   = quotes.low||[];
       const vols   = quotes.volume||[];
 
-      // Current price & change
-      const price   = meta.regularMarketPrice ?? last(closes);
+      // Price & change
+      const price     = meta.regularMarketPrice ?? last(closes);
       const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? null;
-      const chg     = (price && prevClose) ? price - prevClose : null;
-      const chgPct  = (price && prevClose) ? ((price/prevClose)-1)*100 : null;
+      const chg       = (price&&prevClose) ? price-prevClose : null;
+      const chgPct    = (price&&prevClose) ? ((price/prevClose)-1)*100 : null;
 
-      // 52w high/low from daily data
-      const cutoff = Date.now()/1000 - 365*24*3600;
+      // 52w high/low
+      const cutoff=Date.now()/1000-365*24*3600;
       let high52=-Infinity, low52=Infinity;
       for(let i=0;i<ts.length;i++){
         if(ts[i]<cutoff||highs[i]===null)continue;
@@ -495,42 +520,37 @@ async function startLoad(){
       const distHigh52=(price&&high52)?((price/high52-1)*100):null;
       const distLow52=(price&&low52)?((price/low52-1)*100):null;
 
-      // Weekly resample
+      // Weekly resample → technicals
       const wk=resampleWeekly(ts,opens,highs,lows,closes,vols);
       const wc=wk.c;
-      const ema20WA=calcEMA(wc,20),ema60WA=calcEMA(wc,60);
-      const sma20WA=calcSMA(wc,20),sma60WA=calcSMA(wc,60);
+      const ema20WA=calcEMA(wc,20), ema60WA=calcEMA(wc,60);
+      const sma20WA=calcSMA(wc,20), sma60WA=calcSMA(wc,60);
       const rsiWA=wc.length>15?calcRSI(wc):[];
       const macdWO=wc.length>30?calcMACD(wc):{macd:[],signal:[],hist:[]};
 
-      // Fundamentals from quoteSummary
-      const sd  = summary.summaryDetail||{};
-      const fd  = summary.financialData||{};
-      const ks  = summary.defaultKeyStatistics||{};
-      const g   = v=>v?.raw??v??null;
-
-      const pe       = g(sd.trailingPE)  ?? g(ks.trailingPE)  ?? null;
-      const pb       = g(ks.priceToBook) ?? null;
-      const peg      = g(ks.pegRatio)    ?? null;
-      const eps      = g(ks.trailingEps) ?? null;
-      const divYield = g(sd.dividendYield)!=null ? g(sd.dividendYield)*100 : null;
-      const roe      = g(fd.returnOnEquity)!=null ? g(fd.returnOnEquity)*100 : null;
-      const roa      = g(fd.returnOnAssets)!=null ? g(fd.returnOnAssets)*100 : null;
-      const debtEbitda = g(ks.totalDebtToEquity)!=null ? null : null; // YF doesn't expose D/EBITDA directly
-      const fcfYield = (g(fd.freeCashflow) && g(ks.sharesOutstanding) && price)
-        ? (g(fd.freeCashflow)/g(ks.sharesOutstanding)/price)*100 : null;
-      // Debt/EBITDA: totalDebt / ebitda
-      const totalDebt = g(fd.totalDebt) ?? null;
-      const ebitda    = g(fd.ebitda)    ?? null;
-      const debtEb    = (totalDebt&&ebitda&&ebitda>0) ? totalDebt/ebitda : null;
+      // Fundamentals from Finnhub /stock/metric
+      const m = fhMetrics;
+      const bvps    = m['bookValuePerShareAnnual'] ?? null;
+      const fcfps   = m['freeCashFlowPerShareTTM'] ?? null;
+      const pe      = m['peNormalizedAnnual'] ?? m['peBasicExclExtraTTM'] ?? null;
+      const pb      = (bvps&&price&&bvps>0) ? price/bvps : null;
+      const peg     = m['pegRatio'] ?? null;
+      const eps     = m['epsNormalizedAnnual'] ?? m['epsBasicExclExtraAnnual'] ?? null;
+      const divYield= m['dividendYieldIndicatedAnnual'] ?? null;
+      const roe     = m['roeTTM'] ?? null;
+      const roa     = m['roaTTM'] ?? null;
+      const totalDebt = m['totalDebtToTotalAsset'] ?? null; // proxy
+      const ebitda    = m['ebitdaPerShareTTM'] && price ? m['ebitdaPerShareTTM'] : null;
+      // Debt/EBITDA via Finnhub: they expose netDebt/EBITDA directly on some tickers
+      const debtEbitda = m['totalDebt/ebitdaAnnual'] ?? m['netDebt/ebitdaAnnual'] ?? null;
+      const fcfYield   = (fcfps&&price&&price>0) ? (fcfps/price)*100 : null;
 
       stockData[ticker]={
         ticker, price, chg, chgPct, high52, low52, distHigh52, distLow52,
-        pe, pb, peg, eps, divYield, roe, roa, debtEbitda:debtEb, fcfYield,
+        pe, pb, peg, eps, divYield, roe, roa, debtEbitda, fcfYield,
         rsiW:last(rsiWA), ema20W:last(ema20WA), ema60W:last(ema60WA),
         sma20W:last(sma20WA), sma60W:last(sma60WA),
         macdW:last(macdWO.macd), macdSigW:last(macdWO.signal),
-        // series
         wCloses:wc, wTimestamps:wk.t, wVolumes:wk.v,
         rsiWSeries:rsiWA, ema20WSeries:ema20WA, ema60WSeries:ema60WA,
         sma20WSeries:sma20WA, sma60WSeries:sma60WA,
