@@ -451,7 +451,19 @@ function getFmpKey(){ return document.getElementById('fmpKey').value.trim(); }
 async function fmpMetrics(ticker){
   const key = getFmpKey();
   if(!key) return {};
-  const url = `https://financialmodelingprep.com/api/v3/key-metrics-ttm/${encodeURIComponent(ticker)}?apikey=${key}`;
+  // /ratios-ttm is available on free plan
+  const url = `https://financialmodelingprep.com/api/v3/ratios-ttm/${encodeURIComponent(ticker)}?apikey=${key}`;
+  try{
+    const d = await proxyFetch(url);
+    return Array.isArray(d) && d.length ? d[0] : {};
+  }catch(e){ return {}; }
+}
+
+async function fmpProfile(ticker){
+  const key = getFmpKey();
+  if(!key) return {};
+  // /profile gives EPS, market cap etc — free plan
+  const url = `https://financialmodelingprep.com/api/v3/profile/${encodeURIComponent(ticker)}?apikey=${key}`;
   try{
     const d = await proxyFetch(url);
     return Array.isArray(d) && d.length ? d[0] : {};
@@ -485,9 +497,10 @@ async function startLoad(){
     try{
       // Yahoo (via proxy) → OHLCV history for technicals
       // FMP (direct)      → all fundamentals in 1 call
-      const [chart, fmp] = await Promise.all([
+      const [chart, fmpR, fmpP] = await Promise.all([
         yahooFetch(ticker),
-        getFmpKey() ? throttledFmp(()=>fmpMetrics(ticker)) : Promise.resolve({}),
+        getFmpKey() ? throttledFmp(()=>fmpMetrics(ticker))  : Promise.resolve({}),
+        getFmpKey() ? throttledFmp(()=>fmpProfile(ticker))  : Promise.resolve({}),
       ]);
 
       const meta   = chart.meta||{};
@@ -526,18 +539,19 @@ async function startLoad(){
       const rsiWA=wc.length>15?calcRSI(wc):[];
       const macdWO=wc.length>30?calcMACD(wc):{macd:[],signal:[],hist:[]};
 
-      // Fundamentals from FMP /key-metrics-ttm
-      // All fields already TTM, no calculation needed
-      const n=v=>(v!==null&&v!==undefined&&v!==0)?parseFloat(v):null;
-      const pe         = n(fmp.peRatioTTM);
-      const pb         = n(fmp.pbRatioTTM);
-      const peg        = n(fmp.pegRatioTTM);
-      const eps        = n(fmp.netIncomePerShareTTM);
-      const divYield   = fmp.dividendYieldTTM!=null ? n(fmp.dividendYieldTTM)*100 : null;
-      const roe        = fmp.roeTTM!=null            ? n(fmp.roeTTM)*100           : null;
-      const roa        = fmp.roaTTM!=null            ? n(fmp.roaTTM)*100           : null;
-      const debtEbitda = n(fmp.debtToEbitdaTTM);
-      const fcfYield   = fmp.freeCashFlowYieldTTM!=null ? n(fmp.freeCashFlowYieldTTM)*100 : null;
+      // Fundamentals from FMP /ratios-ttm + /profile
+      // ratios-ttm fields: https://financialmodelingprep.com/developer/docs#ratios-ttm
+      const n=v=>(v!==null&&v!==undefined&&v!=='')? parseFloat(v) : null;
+      const nz=v=>{ const x=n(v); return (x!==null&&x!==0)?x:null; };
+      const pe        = nz(fmpR.priceEarningsRatioTTM);
+      const pb        = nz(fmpR.priceToBookRatioTTM);
+      const peg       = nz(fmpR.priceEarningsToGrowthRatioTTM);
+      const eps       = nz(fmpP.eps);
+      const divYield  = fmpR.dividendYieldTTM!=null ? n(fmpR.dividendYieldTTM)*100 : null;
+      const roe       = fmpR.returnOnEquityTTM!=null ? n(fmpR.returnOnEquityTTM)*100 : null;
+      const roa       = fmpR.returnOnAssetsTTM!=null ? n(fmpR.returnOnAssetsTTM)*100 : null;
+      const debtEbitda= nz(fmpR.debtToEbitdaTTM) ?? nz(fmpR.netDebtToEBITDATTM);
+      const fcfYield  = fmpR.freeCashFlowYieldTTM!=null ? n(fmpR.freeCashFlowYieldTTM)*100 : null;
 
       stockData[ticker]={
         ticker, price, chg, chgPct, high52, low52, distHigh52, distLow52,
