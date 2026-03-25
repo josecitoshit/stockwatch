@@ -414,34 +414,15 @@ function resampleWeekly(ts,o,h,l,c,v){
 }
 const last=arr=>{const a=arr.filter(v=>v!==null);return a.length?a[a.length-1]:null;};
 
-// ── PROXY — multiple fallbacks for GitHub Pages ──
+// ── PROXY — tu propio backend en Vercel (sin límites, sin CORS) ──
+// Reemplazá VERCEL_URL con tu URL real después de deployar
+const PROXY_BASE = 'https://stockwatch-proxyjobo.vercel.app';
+
 async function proxyFetch(url){
-  const encoded = encodeURIComponent(url);
-  const proxies = [
-    // htmldriven - simple and reliable
-    `https://cors-anywhere.herokuapp.com/${url}`,
-    // codetabs - works well with GitHub Pages  
-    `https://api.codetabs.com/v1/proxy?quest=${url}`,
-    // allorigins
-    `https://api.allorigins.win/get?url=${encoded}`,
-  ];
-  let lastErr;
-  for(const proxyUrl of proxies){
-    try{
-      const r = await fetch(proxyUrl, {
-        signal: AbortSignal.timeout(15000),
-        headers: {'X-Requested-With': 'XMLHttpRequest'}
-      });
-      if(!r.ok) throw new Error('HTTP '+r.status);
-      const text = await r.text();
-      if(text.includes('"contents"') && text.includes('"status"')){
-        const outer = JSON.parse(text);
-        if(outer.contents) return JSON.parse(outer.contents);
-      }
-      return JSON.parse(text);
-    }catch(e){ lastErr=e; }
-  }
-  throw lastErr || new Error('All proxies failed');
+  const endpoint = `${PROXY_BASE}/api/proxy?url=${encodeURIComponent(url)}`;
+  const r = await fetch(endpoint, {signal: AbortSignal.timeout(15000)});
+  if(!r.ok) throw new Error('Proxy error '+r.status);
+  return r.json();
 }
 
 async function yahooFetch(ticker){
