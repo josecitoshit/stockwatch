@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>StockWatch Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 <style>
 :root{
   --bg:#0a0c0f;--bg2:#111318;--bg3:#181c22;--bg4:#1f242d;
@@ -77,7 +77,6 @@ tbody tr.sel td:first-child{background:var(--bg4);}
 .rw{display:flex;align-items:center;gap:3px;justify-content:flex-end;}
 .rb{width:34px;height:3px;background:var(--bg4);border-radius:2px;overflow:hidden;}
 .rf{height:100%;border-radius:2px;}
-/* detail */
 #detail{padding:0;}
 #detailInner{padding:18px 20px;}
 #dHdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;gap:12px;}
@@ -95,7 +94,6 @@ tbody tr.sel td:first-child{background:var(--bg4);}
 .fv.up{color:var(--green);}.fv.down{color:var(--red);}
 .fs{font-size:9px;color:var(--text3);margin-top:1px;}
 .cbox{background:var(--bg3);border-radius:6px;padding:10px;margin-bottom:0;}
-/* editor */
 #tickerEditor{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center;}
 #tickerEditor.open{display:flex;}
 #tickerModal{background:var(--bg2);border:1px solid var(--border2);border-radius:10px;width:480px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;}
@@ -348,7 +346,6 @@ let sortKey='chgPct', sortDir='desc';
 
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 
-// Simple concurrency limiter
 async function withLimit(tasks, limit=4){
   const results=[]; let i=0;
   async function worker(){
@@ -362,7 +359,6 @@ async function withLimit(tasks, limit=4){
   return results;
 }
 
-// ── INDICATORS ──
 function calcSMA(arr,n){return arr.map((_,i)=>i<n-1?null:arr.slice(i-n+1,i+1).reduce((a,b)=>a+b,0)/n);}
 function calcEMA(arr,n){
   const k=2/(n+1),out=[];let prev=null;
@@ -414,8 +410,6 @@ function resampleWeekly(ts,o,h,l,c,v){
 }
 const last=arr=>{const a=arr.filter(v=>v!==null);return a.length?a[a.length-1]:null;};
 
-// ── PROXY — tu propio backend en Vercel (sin límites, sin CORS) ──
-// Reemplazá VERCEL_URL con tu URL real después de deployar
 const PROXY_BASE = 'https://stockwatch-proxyjobo.vercel.app';
 
 async function proxyFetch(url){
@@ -435,7 +429,6 @@ async function yahooFetch(ticker){
   return data.chart.result[0];
 }
 
-// ── FMP (Financial Modeling Prep) — fundamentals ──
 function getFmpKey(){ return document.getElementById('fmpKey').value.trim(); }
 
 async function fmpMetrics(ticker){
@@ -458,7 +451,6 @@ async function fmpProfile(ticker){
   }catch(e){ return {}; }
 }
 
-// Throttle FMP — 250 calls/day free, max 5/sec safe
 let fmpTs=[];
 async function throttledFmp(fn){
   while(true){
@@ -469,7 +461,6 @@ async function throttledFmp(fn){
   fmpTs.push(Date.now()); return fn();
 }
 
-// ── LOAD ──
 async function startLoad(){
   if(loading)return;
   loading=true;
@@ -483,8 +474,6 @@ async function startLoad(){
 
   const tasks=tickers.map(ticker=>async()=>{
     try{
-      // Yahoo (via proxy) → OHLCV history for technicals
-      // FMP (direct)      → all fundamentals in 1 call
       const [chart, fmpR, fmpP] = await Promise.all([
         yahooFetch(ticker),
         getFmpKey() ? throttledFmp(()=>fmpMetrics(ticker))  : Promise.resolve({}),
@@ -500,13 +489,11 @@ async function startLoad(){
       const lows   = quotes.low||[];
       const vols   = quotes.volume||[];
 
-      // Price & change
       const price     = meta.regularMarketPrice ?? last(closes);
       const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? null;
       const chg       = (price&&prevClose) ? price-prevClose : null;
       const chgPct    = (price&&prevClose) ? ((price/prevClose)-1)*100 : null;
 
-      // 52w high/low from daily candles
       const cutoff=Date.now()/1000-365*24*3600;
       let high52=-Infinity, low52=Infinity;
       for(let i=0;i<ts.length;i++){
@@ -519,7 +506,6 @@ async function startLoad(){
       const distHigh52=(price&&high52)?((price/high52-1)*100):null;
       const distLow52=(price&&low52)?((price/low52-1)*100):null;
 
-      // Weekly resample → technicals
       const wk=resampleWeekly(ts,opens,highs,lows,closes,vols);
       const wc=wk.c;
       const ema20WA=calcEMA(wc,20), ema60WA=calcEMA(wc,60);
@@ -527,8 +513,6 @@ async function startLoad(){
       const rsiWA=wc.length>15?calcRSI(wc):[];
       const macdWO=wc.length>30?calcMACD(wc):{macd:[],signal:[],hist:[]};
 
-      // Fundamentals from FMP /ratios-ttm + /profile
-      // ratios-ttm fields: https://financialmodelingprep.com/developer/docs#ratios-ttm
       const n=v=>(v!==null&&v!==undefined&&v!=='')? parseFloat(v) : null;
       const nz=v=>{ const x=n(v); return (x!==null&&x!==0)?x:null; };
       const pe        = nz(fmpR.priceEarningsRatioTTM);
@@ -562,7 +546,6 @@ async function startLoad(){
     renderTable();
   });
 
-  // 5 concurrent fetches — respectful to Yahoo + proxy
   await withLimit(tasks, 5);
 
   loading=false;
@@ -574,7 +557,6 @@ async function startLoad(){
   renderTable();
 }
 
-// ── FORMAT HELPERS ──
 const fN=(v,d=2)=>{if(v===null||v===undefined)return'—';const n=parseFloat(v);return isNaN(n)?'—':n.toFixed(d);};
 const fP=v=>{if(v===null||v===undefined)return'—';return'$'+parseFloat(v).toFixed(2);};
 
@@ -587,7 +569,6 @@ function getSignal(d){
   return bull>bear?'bull':bear>bull?'bear':'neutral';
 }
 
-// ── RENDER TABLE ──
 function renderTable(){
   const filter=document.getElementById('filterInput').value.toLowerCase();
   sortKey=document.getElementById('sortCol').value;
@@ -662,7 +643,6 @@ function sortBy(col){
   const el=document.getElementById('th-'+col);if(el)el.classList.add('sorted');
 }
 
-// ── DETAIL PANEL ──
 function openDetail(ticker){
   selectedTicker=ticker;renderTable();
   const d=stockData[ticker];if(!d||!d.loaded)return;
@@ -706,7 +686,8 @@ function openDetail(ticker){
 
 function buildCharts(d){
   const labels=d.wTimestamps.map(t=>{const dt=new Date(t*1000);return(dt.getMonth()+1)+'/'+(dt.getFullYear()%100);});
-  const CD={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+  const CD={responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
     scales:{x:{ticks:{maxTicksLimit:10,font:{size:9},color:'#4a5468'},grid:{color:'rgba(255,255,255,0.04)'}},
             y:{ticks:{font:{size:9},color:'#4a5468'},grid:{color:'rgba(255,255,255,0.04)'}}}};
 
@@ -747,7 +728,6 @@ function closeDetail(){
   renderTable();
 }
 
-// ── EDITOR ──
 function openEditor(){document.getElementById('tickerTA').value=tickers.join('\n');document.getElementById('tickerEditor').classList.add('open');}
 function closeEditor(){document.getElementById('tickerEditor').classList.remove('open');}
 function saveEditor(){
