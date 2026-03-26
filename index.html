@@ -75,50 +75,53 @@ tbody tr.sel td:first-child{background:var(--bg4);}
 /* DETAIL PANEL */
 #detail{padding:0;}
 #detailInner{padding:16px 18px;}
-#dHdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;gap:12px;}
+#dHdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;gap:12px;}
 #dClose{background:transparent;border:1px solid var(--border2);color:var(--text3);border-radius:2px;padding:4px 10px;cursor:pointer;font-size:11px;flex-shrink:0;}
 #dClose:hover{color:var(--green);border-color:var(--green);}
 .d-sym{font-size:20px;font-weight:500;color:#fff;letter-spacing:.1em;}
 .d-price{font-size:24px;font-weight:500;margin-top:4px;}
 .d-chg{font-size:12px;margin-top:2px;}
-.d-topbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border2);}
+.d-topbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border2);}
 .d-52w{font-size:11px;color:var(--text2);}
 .d-52w span{color:var(--text);}
-
-/* FUNDAMENTALS GRID */
 .fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:5px;margin-bottom:14px;}
 .fc{background:var(--bg3);border-radius:2px;padding:7px 9px;border:1px solid var(--border);}
 .fl{font-size:9px;color:var(--text3);margin-bottom:2px;letter-spacing:.08em;}
 .fv{font-size:13px;font-weight:500;color:var(--text);}
 .fv.up{color:var(--green);}.fv.down{color:var(--red);}
 
-/* ECONOMETRIC ANALYSIS */
-.eco-section{margin-bottom:14px;}
-.eco-hd{font-size:10px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:8px;}
-.eco-hd-up{color:var(--green);}
-.eco-hd-down{color:var(--red);}
+/* ECONOMETRIC — screenshot style */
+.eco-section{margin-bottom:16px;}
+.eco-hd{font-size:11px;font-weight:500;letter-spacing:.08em;margin-bottom:8px;padding:4px 0;display:flex;align-items:center;gap:8px;}
+.eco-hd-up{color:var(--green);font-size:13px;}
+.eco-hd-down{color:var(--red);font-size:13px;}
+.eco-hd-label-up{color:var(--green);}
+.eco-hd-label-down{color:var(--red);}
 .eco-table{width:100%;border-collapse:collapse;font-size:11px;}
-.eco-table th{padding:5px 8px;text-align:right;color:var(--text3);font-size:10px;font-weight:500;letter-spacing:.06em;border-bottom:1px solid var(--border2);}
+.eco-table th{padding:5px 10px;text-align:right;color:var(--green);font-size:10px;font-weight:500;letter-spacing:.06em;border-bottom:1px solid rgba(0,255,136,0.3);}
 .eco-table th:first-child{text-align:left;}
-.eco-table td{padding:4px 8px;text-align:right;color:var(--text2);border-bottom:1px solid var(--border);}
-.eco-table td:first-child{text-align:left;color:var(--text);}
-.eco-table tr.main-row td{color:var(--text);}
+.eco-table th.rh{color:var(--red);border-bottom-color:rgba(255,68,102,0.3);}
+.eco-table td{padding:4px 10px;text-align:right;border-bottom:1px solid var(--border);}
+.eco-table td:first-child{text-align:left;}
+.eco-table tr.main-row td{color:#fff;font-weight:500;}
+.eco-table tr.main-row td.mov-up{color:var(--green);}
+.eco-table tr.main-row td.mov-down{color:var(--red);}
 .eco-table tr.sub-row td{color:var(--text3);font-size:10px;}
-.eco-table tr.sub-row td:first-child{padding-left:16px;}
-.eco-stats{background:var(--bg3);border:1px solid var(--border2);border-radius:2px;padding:10px 12px;font-size:11px;margin-bottom:10px;}
-.eco-stats-row{display:flex;gap:24px;margin-bottom:4px;}
-.eco-stats-row:last-child{margin-bottom:0;}
-.eco-label{color:var(--text3);margin-right:6px;}
-.eco-current{background:var(--bg3);border:1px solid var(--border2);border-radius:2px;padding:10px 12px;font-size:11px;}
-.eco-current-title{font-size:10px;color:var(--blue);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;text-align:center;}
-.eco-current-row{margin-bottom:5px;line-height:1.6;}
-.eco-pct-row{display:flex;gap:16px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
-.eco-pct-item{flex:1;text-align:center;background:var(--bg4);border-radius:2px;padding:6px 4px;}
-.eco-pct-label{font-size:9px;color:var(--text3);margin-bottom:2px;}
-.eco-pct-val{font-size:12px;font-weight:500;}
-.eco-note{font-size:10px;color:var(--text3);margin-top:8px;line-height:1.6;}
+.eco-table tr.sub-row td:first-child{padding-left:14px;color:var(--text2);}
+.eco-table tr.sub-row td.mov-up{color:var(--red);}
+.eco-table tr.sub-row td.mov-down{color:var(--green);}
+.eco-divider{border:none;border-top:1px solid var(--border2);margin:14px 0;}
+.eco-stats{font-size:11px;border:1px solid var(--border2);border-radius:2px;padding:10px 14px;margin-bottom:12px;line-height:1.9;}
+.eco-stats-row{display:flex;gap:6px;align-items:baseline;}
+.eco-lbl{color:var(--text3);min-width:52px;}
+.eco-current{border:1px solid var(--blue);border-radius:2px;padding:12px 14px;font-size:11px;line-height:1.9;}
+.eco-current-title{text-align:center;color:var(--blue);font-size:10px;letter-spacing:.1em;margin-bottom:10px;border-bottom:1px solid rgba(0,204,255,0.2);padding-bottom:6px;}
+.eco-fwd{display:flex;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+.eco-fwd-item{flex:1;text-align:center;background:var(--bg4);border-radius:2px;padding:7px 4px;}
+.eco-fwd-lbl{font-size:9px;color:var(--text3);margin-bottom:3px;}
+.eco-fwd-val{font-size:13px;font-weight:500;}
+.eco-fwd-bull{font-size:9px;color:var(--text3);margin-top:2px;}
 .loading-msg{text-align:center;padding:40px 20px;color:var(--text3);font-size:12px;}
-.loading-dot{display:inline-block;animation:blink 1s ease-in-out infinite;}
 
 /* TICKER EDITOR */
 #tickerEditor{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:100;align-items:center;justify-content:center;}
@@ -130,34 +133,35 @@ tbody tr.sel td:first-child{background:var(--bg4);}
 .mfoot{padding:10px 20px;border-top:1px solid var(--border2);display:flex;justify-content:flex-end;gap:8px;}
 #emptyState{text-align:center;padding:60px 20px;color:var(--text3);font-size:12px;line-height:2.2;}
 #emptyState a{color:var(--green);}
+
+/* FULLSCREEN */
 #fsOverlay{display:none;position:fixed;inset:0;background:#0f0f0f;z-index:200;flex-direction:column;overflow:hidden;pointer-events:none;}
 #fsOverlay.open{display:flex;pointer-events:all;}
-#fsTopbar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid var(--border2);flex-shrink:0;background:#0f0f0f;}
+#fsTopbar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid var(--border2);flex-shrink:0;}
 #fsTitle{font-size:15px;font-weight:500;color:#fff;letter-spacing:.08em;}
 #fsTitle span{color:var(--green);}
 #fsClose{background:transparent;border:1px solid var(--border2);color:var(--text3);border-radius:2px;padding:4px 12px;cursor:pointer;font-family:var(--mono);font-size:11px;}
 #fsClose:hover{color:var(--green);border-color:var(--green);}
-#fsBody{flex:1;overflow-y:auto;padding:20px 40px;}
+#fsBody{flex:1;overflow-y:auto;padding:20px 48px;}
 #fsBody::-webkit-scrollbar{width:4px;}
 #fsBody::-webkit-scrollbar-thumb{background:var(--bg4);}
-#fsMeta{display:flex;align-items:center;gap:24px;margin-bottom:14px;flex-wrap:wrap;font-size:12px;}
+#fsMeta{display:flex;align-items:center;gap:20px;margin-bottom:12px;flex-wrap:wrap;font-size:12px;padding-bottom:12px;border-bottom:1px solid var(--border2);}
 #fsFund{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:6px;margin-bottom:20px;}
 #fsEco .eco-table{font-size:12px;}
-#fsEco .eco-table th{font-size:11px;padding:6px 10px;}
-#fsEco .eco-table td{padding:5px 10px;}
-#fsEco .eco-stats{font-size:12px;padding:12px 16px;}
-#fsEco .eco-current{font-size:12px;padding:12px 16px;}
-#fsEco .eco-section{margin-bottom:20px;}
+#fsEco .eco-table th{font-size:11px;padding:6px 12px;}
+#fsEco .eco-table td{padding:6px 12px;}
+#fsEco .eco-stats{font-size:12px;}
+#fsEco .eco-current{font-size:12px;}
+#fsEco .eco-section{margin-bottom:22px;}
 </style>
 </head>
 <body>
 <div id="app">
-
 <div id="topbar">
   <h1>JOBIX<span>TRACKER</span></h1>
   <div style="display:flex;align-items:center;gap:6px;">
     <span style="font-size:11px;color:var(--text3);letter-spacing:.06em;">POLYGON KEY</span>
-    <input type="password" id="polyKey" placeholder="xxxxxxxxxxxxxxxx" style="width:148px;" />
+    <input type="password" id="polyKey" placeholder="xxxxxxxxxxxxxxxx" style="width:148px;"/>
   </div>
   <button class="btn primary" id="loadBtn" onclick="startLoad()">▶ CARGAR</button>
   <button class="btn" onclick="openEditor()">EDITAR TICKERS</button>
@@ -304,9 +308,7 @@ function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 
 async function withLimit(tasks,limit=3){
   const results=[];let i=0;
-  async function worker(){
-    while(i<tasks.length){const idx=i++;try{results[idx]=await tasks[idx]();}catch(e){results[idx]={error:e.message};}}
-  }
+  async function worker(){while(i<tasks.length){const idx=i++;try{results[idx]=await tasks[idx]();}catch(e){results[idx]={error:e.message};}}}
   await Promise.all(Array.from({length:Math.min(limit,tasks.length)},worker));
   return results;
 }
@@ -357,12 +359,11 @@ function resampleWeekly(ts,o,h,l,c,v){
     else{weeks[key].h=Math.max(weeks[key].h,h[i]);weeks[key].l=Math.min(weeks[key].l,l[i]);weeks[key].c=c[i];weeks[key].v+=v[i]||0;}
   }
   const s=Object.values(weeks).sort((a,b)=>a.t-b.t);
-  return{t:s.map(w=>w.t),o:s.map(w=>w.o),h:s.map(w=>w.h),l:s.map(w=>w.l),c:s.map(w=>w.c),v:s.map(w=>w.v)};
+  return{t:s.map(w=>w.t),c:s.map(w=>w.c),v:s.map(w=>w.v)};
 }
 const last=arr=>{const a=arr.filter(v=>v!==null);return a.length?a[a.length-1]:null;};
 
-// ── PIVOT DETECTION ──
-// Detects local highs and lows in weekly closes using a window
+// ── PIVOT & SEGMENT DETECTION ──
 function detectPivots(closes,timestamps,window=5){
   const pivots=[];
   for(let i=window;i<closes.length-window;i++){
@@ -378,129 +379,88 @@ function detectPivots(closes,timestamps,window=5){
   }
   return pivots;
 }
-
-// Build rally/drop segments from pivots
+function fmtDate(ts){
+  const d=new Date(ts*1000);
+  const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return d.getDate()+'-'+mo[d.getMonth()]+'-'+d.getFullYear().toString().slice(2);
+}
 function buildSegments(closes,timestamps){
-  const pivots=detectPivots(closes,timestamps,3);
-  if(pivots.length<2)return{rallies:[],drops:[]};
+  const pivots=detectPivots(closes,timestamps,5);
+  if(pivots.length<2)return{rallies:[],drops:[],all:[]};
   const segments=[];
   for(let i=0;i<pivots.length-1;i++){
     const a=pivots[i],b=pivots[i+1];
     const pct=((b.price/a.price)-1)*100;
     const bars=b.idx-a.idx;
-    const weeks=+(bars).toFixed(1);
-    const dtA=new Date(a.ts*1000),dtB=new Date(b.ts*1000);
-    const fmtDate=d=>{const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return d.getDate()+'-'+mo[d.getMonth()]+'-'+d.getFullYear().toString().slice(2);}
-    segments.push({from:fmtDate(dtA),to:fmtDate(dtB),priceFrom:a.price,priceTo:b.price,pct,bars,weeks,fromTs:a.ts,toTs:b.ts,fromIdx:a.idx,toIdx:b.idx});
+    segments.push({from:fmtDate(a.ts),to:fmtDate(b.ts),priceFrom:a.price,priceTo:b.price,pct,bars,weeks:+(bars/5).toFixed(1),fromIdx:a.idx,toIdx:b.idx});
   }
   const rallies=segments.filter(s=>s.pct>10).sort((a,b)=>b.pct-a.pct).slice(0,5);
   const drops=segments.filter(s=>s.pct<-10).sort((a,b)=>a.pct-b.pct).slice(0,5);
   return{rallies,drops,all:segments};
 }
-
-// Find what happened AFTER a segment ended (next move)
 function findFollowup(seg,closes,timestamps){
   const endIdx=seg.toIdx;
   if(endIdx>=closes.length-3)return null;
-  // look for next pivot after end
   let extreme=closes[endIdx],extremeIdx=endIdx;
+  const isRally=seg.pct>0;
   for(let i=endIdx+1;i<Math.min(endIdx+40,closes.length);i++){
     if(closes[i]===null)continue;
-    const isRally=seg.pct>0;
     if(isRally&&closes[i]<extreme){extreme=closes[i];extremeIdx=i;}
     if(!isRally&&closes[i]>extreme){extreme=closes[i];extremeIdx=i;}
-    // stop if we reversed significantly
-    if(Math.abs((extreme/closes[endIdx])-1)>0.05&&i>endIdx+5) break;
+    if(Math.abs((extreme/closes[endIdx])-1)>0.05&&i>endIdx+5)break;
   }
   if(extremeIdx===endIdx)return null;
   const pct=((extreme/closes[endIdx])-1)*100;
-  const bars=extremeIdx-endIdx;
-  const dtA=new Date(timestamps[endIdx]*1000),dtB=new Date(timestamps[extremeIdx]*1000);
-  const fmtDate=d=>{const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return d.getDate()+'-'+mo[d.getMonth()]+'-'+d.getFullYear().toString().slice(2);}
-  return{from:fmtDate(dtA),to:fmtDate(dtB),pct,bars,weeks:+(bars).toFixed(1),priceFrom:closes[endIdx],priceTo:extreme};
+  return{from:fmtDate(timestamps[endIdx]),to:fmtDate(timestamps[extremeIdx]),pct,bars:extremeIdx-endIdx,weeks:+((extremeIdx-endIdx)/5).toFixed(1),priceFrom:closes[endIdx],priceTo:extreme};
 }
-
-// Forward returns after a given index
-function forwardReturns(closes,fromIdx,days){
-  const targets=[10,20,40];
+function forwardReturns(closes,fromIdx){
   const res={};
-  for(const d of targets){
+  for(const d of[10,20,40]){
     const ti=fromIdx+d;
-    if(ti<closes.length&&closes[ti]!==null){
-      res[d]=((closes[ti]/closes[fromIdx])-1)*100;
-    }else res[d]=null;
+    res[d]=(ti<closes.length&&closes[ti]!==null)?((closes[ti]/closes[fromIdx])-1)*100:null;
   }
   return res;
 }
-
-// Current situation analysis
 function currentSituation(closes,timestamps,all){
   if(!closes.length)return null;
   const lastPrice=last(closes);
-  const lastIdx=closes.filter(v=>v!==null).length-1;
-  // find last actual pivot
-  const pivots=detectPivots(closes,timestamps,3);
+  const pivots=detectPivots(closes,timestamps,5);
   if(!pivots.length)return null;
-  const lastPivot=pivots[pivots.length-1];
-  const pctFromPivot=((lastPrice/lastPivot.price)-1)*100;
-  const barsFromPivot=lastIdx-lastPivot.idx;
-  const dtPivot=new Date(lastPivot.ts*1000);
-  const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const fmtDate=d=>d.getDate()+'-'+mo[d.getMonth()]+'-'+d.getFullYear().toString().slice(2);
-
-  // find last peak and valley
   let lastPeak=null,lastValley=null;
   for(let i=pivots.length-1;i>=0;i--){
     if(!lastPeak&&pivots[i].type==='high')lastPeak=pivots[i];
     if(!lastValley&&pivots[i].type==='low')lastValley=pivots[i];
     if(lastPeak&&lastValley)break;
   }
-
-  // percentile of current drop vs historical drops
-  const drops=all?all.filter(s=>s.pct<-10):[];
+  const drops=all.filter(s=>s.pct<-10);
   let percentile=null;
   if(drops.length&&lastPeak){
     const currentDrop=((lastPrice/lastPeak.price)-1)*100;
-    const worse=drops.filter(d=>d.pct<=currentDrop).length;
-    percentile=Math.round((worse/drops.length)*100);
+    percentile=Math.round(drops.filter(d=>d.pct<=currentDrop).length/drops.length*100);
   }
-
-  // similar episodes — historical drops of similar magnitude
   let similarFwd=null;
   if(lastPeak&&drops.length){
     const currentDrop=((lastPrice/lastPeak.price)-1)*100;
     const similar=drops.filter(d=>Math.abs(d.pct-currentDrop)<10);
     if(similar.length){
-      const fwdReturns=similar.map(d=>{
-        const fr=forwardReturns(closes,d.toIdx,40);
-        return fr;
-      });
-      const avg=(key)=>{
-        const vals=fwdReturns.map(r=>r[key]).filter(v=>v!==null);
-        return vals.length?+(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1):null;
-      };
-      const bullPct=(key)=>{
-        const vals=fwdReturns.map(r=>r[key]).filter(v=>v!==null);
-        return vals.length?Math.round(vals.filter(v=>v>0).length/vals.length*100):null;
-      };
-      similarFwd={
-        n:similar.length,
-        r10:{avg:avg(10),bull:bullPct(10)},
-        r20:{avg:avg(20),bull:bullPct(20)},
-        r40:{avg:avg(40),bull:bullPct(40)},
-      };
+      const fwdArr=similar.map(d=>forwardReturns(closes,d.toIdx));
+      const avg=k=>{const v=fwdArr.map(r=>r[k]).filter(v=>v!==null);return v.length?+(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1):null;};
+      const bull=k=>{const v=fwdArr.map(r=>r[k]).filter(v=>v!==null);return v.length?Math.round(v.filter(v=>v>0).length/v.length*100):null;};
+      similarFwd={n:similar.length,r10:{avg:avg(10),bull:bull(10)},r20:{avg:avg(20),bull:bull(20)},r40:{avg:avg(40),bull:bull(40)}};
     }
   }
-
-  return{lastPivot,pctFromPivot,barsFromPivot,fmtDate,lastPeak,lastValley,lastPrice,percentile,similarFwd,drops};
+  return{lastPeak,lastValley,lastPrice,percentile,similarFwd,drops};
 }
 
+// ── PROXY ──
 const PROXY_BASE='https://stockwatch-proxyjobo.vercel.app';
 async function proxyFetch(url){
   const r=await fetch(`${PROXY_BASE}/api/proxy?url=${encodeURIComponent(url)}`,{signal:AbortSignal.timeout(15000)});
   if(!r.ok)throw new Error('Proxy '+r.status);
   return r.json();
 }
+
+// ── FINVIZ scraping — all fundamentals ──
 async function finvizFetch(ticker){
   const url=`https://finviz.com/quote.ashx?t=${encodeURIComponent(ticker)}&ty=c&ta=1&p=d`;
   const r=await fetch(`${PROXY_BASE}/api/proxy?url=${encodeURIComponent(url)}`,{signal:AbortSignal.timeout(15000)});
@@ -509,20 +469,53 @@ async function finvizFetch(ticker){
   if(ct.includes('application/json')){const j=await r.json();return typeof j==='string'?j:JSON.stringify(j);}
   return r.text();
 }
-function parseFinvizPct(html,label){
-  const re=new RegExp('<td[^>]*>'+label+'<\\/td>\\s*<td[^>]*>([^<]+)<\\/td>','i');
+function fvNum(html,label){
+  const re=new RegExp('<td[^>]*>\\s*'+label+'\\s*<\\/td>\\s*<td[^>]*>([^<]+)<\\/td>','i');
   const m=html.match(re);if(!m)return null;
-  const v=m[1].trim();if(v==='-'||v==='')return null;
-  return parseFloat(v.replace('%','').replace(',',''));
+  const v=m[1].trim().replace(/[,%]/g,'');
+  if(v==='-'||v===''||v==='N/A')return null;
+  return parseFloat(v);
 }
+function parseFundamentalsFromFinviz(html){
+  if(!html||typeof html!=='string')return{};
+  // Finviz table labels
+  const pe       = fvNum(html,'P/E');
+  const pb       = fvNum(html,'P/B');
+  const eps      = fvNum(html,'EPS \\(ttm\\)')||fvNum(html,'EPS');
+  const roe      = fvNum(html,'ROE');
+  const roa      = fvNum(html,'ROA');
+  const divYield = fvNum(html,'Dividend %')||fvNum(html,'Div %')||fvNum(html,'Dividend');
+  const marketCap= parseMarketCap(html);
+  // Debt/EBITDA — Finviz doesn't have it directly, use Debt/Eq as proxy label
+  const debtEq   = fvNum(html,'Debt\\/Eq');
+  // FCF Yield — from P/FCF
+  const pfcf     = fvNum(html,'P\\/FCF');
+  const fcfYield = (pfcf&&pfcf>0)?(1/pfcf)*100:null;
+  return{pe,pb,eps,roe,roa,divYield,marketCap,debtEq,fcfYield};
+}
+function parseMarketCap(html){
+  const re=/<td[^>]*>\s*Market Cap\s*<\/td>\s*<td[^>]*>([^<]+)<\/td>/i;
+  const m=html.match(re);if(!m)return null;
+  const v=m[1].trim();
+  if(v==='-'||v==='')return null;
+  const n=parseFloat(v);
+  if(v.endsWith('T'))return n*1e12;
+  if(v.endsWith('B'))return n*1e9;
+  if(v.endsWith('M'))return n*1e6;
+  return n;
+}
+
+// ── YAHOO ──
 async function yahooFetch(ticker){
-  const p2=Math.floor(Date.now()/1000),p1=p2-3650*24*3600; // ~10 years
+  const p2=Math.floor(Date.now()/1000),p1=p2-3650*24*3600;
   const url=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&period1=${p1}&period2=${p2}&includePrePost=false`;
   const data=await proxyFetch(url);
   if(data.chart?.error)throw new Error(data.chart.error.description||'Yahoo error');
   if(!data.chart?.result?.[0])throw new Error('No data');
   return data.chart.result[0];
 }
+
+// ── POLYGON (used as fallback for fundamentals) ──
 function getPolyKey(){return document.getElementById('polyKey').value.trim();}
 async function polygonFinancials(ticker){
   const key=getPolyKey();if(!key)return{};
@@ -537,7 +530,7 @@ async function throttledPoly(fn){
   while(true){const now=Date.now();polyTs=polyTs.filter(t=>now-t<60000);if(polyTs.length<4)break;await sleep(500);}
   polyTs.push(Date.now());return fn();
 }
-function calcFundamentals(fin,details,price){
+function calcFundamentalsFromPoly(fin,details,price){
   const n=v=>(v!==null&&v!==undefined)?parseFloat(v):null;
   const inc=fin.income_statement||{},bal=fin.balance_sheet||{},cf=fin.cash_flow_statement||{};
   const netIncome=n(inc.net_income_loss?.value),revenues=n(inc.revenues?.value);
@@ -551,10 +544,11 @@ function calcFundamentals(fin,details,price){
   const roe=(netIncome&&equity&&equity>0)?(netIncome/equity)*100:null;
   const roa=(netIncome&&totalAssets&&totalAssets>0)?(netIncome/totalAssets)*100:null;
   const debtEbitda=(longTermDebt&&operatingCF&&operatingCF>0)?longTermDebt/operatingCF:null;
-  const fcfYieldPoly=(operatingCF&&marketCap&&marketCap>0)?(operatingCF/marketCap)*100:null;
-  return{pe,pb,roe,roa,debtEbitda,fcfYieldPoly,eps,revenues,marketCap};
+  const fcfYield=(operatingCF&&marketCap&&marketCap>0)?(operatingCF/marketCap)*100:null;
+  return{pe,pb,roe,roa,debtEbitda,fcfYield,eps,revenues,marketCap};
 }
 
+// ── LOAD ──
 async function startLoad(){
   if(loading)return;loading=true;
   document.getElementById('loadBtn').disabled=true;
@@ -575,43 +569,67 @@ async function startLoad(){
       const meta=chart.meta||{},quotes=chart.indicators?.quote?.[0]||{};
       const ts=chart.timestamp||[],closes=quotes.close||[],opens=quotes.open||[];
       const highs=quotes.high||[],lows=quotes.low||[],vols=quotes.volume||[];
+
+      // Price — use regularMarketPrice if available, else last close
       const price=meta.regularMarketPrice??last(closes);
-      // Use last two valid daily closes for accurate day-over-day change
-      const validCloses=closes.filter(v=>v!==null&&v!==undefined);
-      const prevClose=validCloses.length>=2?validCloses[validCloses.length-2]:(meta.chartPreviousClose??meta.previousClose??null);
+
+      // CHG% — use last two valid daily closes for accuracy
+      const validCloses=closes.map((v,i)=>({v,i})).filter(x=>x.v!==null&&x.v!==undefined&&!isNaN(x.v));
+      let prevClose=null;
+      if(validCloses.length>=2){
+        // Check if today's close is already in the array (market closed) or use meta price
+        const lastClose=validCloses[validCloses.length-1].v;
+        const secondLast=validCloses[validCloses.length-2].v;
+        if(meta.regularMarketPrice&&Math.abs(meta.regularMarketPrice-lastClose)/lastClose>0.001){
+          // live price differs from last close — prevClose is last close
+          prevClose=lastClose;
+        }else{
+          // market closed, use second-to-last
+          prevClose=secondLast;
+        }
+      }
+      if(!prevClose)prevClose=meta.chartPreviousClose??meta.previousClose??null;
       const chg=(price&&prevClose)?price-prevClose:null;
       const chgPct=(price&&prevClose)?((price/prevClose)-1)*100:null;
+
       const cutoff=Date.now()/1000-365*24*3600;
       let high52=-Infinity,low52=Infinity;
       for(let i=0;i<ts.length;i++){if(ts[i]<cutoff||highs[i]===null)continue;if(highs[i]>high52)high52=highs[i];if(lows[i]<low52)low52=lows[i];}
       high52=high52===-Infinity?null:high52;low52=low52===Infinity?null:low52;
       const distHigh52=(price&&high52)?((price/high52-1)*100):null;
       const distLow52=(price&&low52)?((price/low52-1)*100):null;
+
       const wk=resampleWeekly(ts,opens,highs,lows,closes,vols);
       const wc=wk.c;
       const ema10WA=calcEMA(wc,10),ema20WA=calcEMA(wc,20);
       const rsiWA=wc.length>15?calcRSI(wc):[];
-      const macdWO=wc.length>30?calcMACD(wc):{macd:[],signal:[],hist:[]};
       const ema10W=last(ema10WA),ema20W=last(ema20WA);
       const ema10WDev=(price&&ema10W)?((price/ema10W)-1)*100:null;
       const ema20WDev=(price&&ema20W)?((price/ema20W)-1)*100:null;
-      const fund=calcFundamentals(fin,det,price);
-      let divYield=null,fcfYield=null;
-      if(fvHtml&&typeof fvHtml==='string'&&fvHtml.includes('finviz')){
-        divYield=parseFinvizPct(fvHtml,'Dividend');
-        const pfcf=parseFinvizPct(fvHtml,'P\\/FCF');
-        if(pfcf!==null&&pfcf>0)fcfYield=(1/pfcf)*100;
-      }
-      if(fcfYield===null)fcfYield=fund.fcfYieldPoly??null;
-      // build econometric data from weekly closes
+      const macdWO=wc.length>30?calcMACD(wc):{macd:[],signal:[],hist:[]};
+
+      // Fundamentals: Finviz first, Polygon as fallback
+      const fv=parseFundamentalsFromFinviz(fvHtml);
+      const poly=calcFundamentalsFromPoly(fin,det,price);
+      const pick=(a,b)=>a!==null&&a!==undefined?a:b;
+      const pe        = pick(fv.pe,       poly.pe);
+      const pb        = pick(fv.pb,       poly.pb);
+      const eps       = pick(fv.eps,      poly.eps);
+      const roe       = pick(fv.roe,      poly.roe);
+      const roa       = pick(fv.roa,      poly.roa);
+      const divYield  = fv.divYield??null;
+      const fcfYield  = pick(fv.fcfYield, poly.fcfYield);
+      const marketCap = pick(fv.marketCap,poly.marketCap);
+      const debtEbitda= fv.debtEq??poly.debtEbitda??null;
+      const revenues  = poly.revenues??null;
+
       const {rallies,drops,all}=buildSegments(wc,wk.t);
       const situation=currentSituation(wc,wk.t,all||[]);
+
       stockData[ticker]={
         ticker,price,chg,chgPct,high52,low52,distHigh52,distLow52,
         ema10W,ema20W,ema10WDev,ema20WDev,
-        pe:fund.pe,pb:fund.pb,roe:fund.roe,roa:fund.roa,
-        debtEbitda:fund.debtEbitda,fcfYield,divYield,
-        eps:fund.eps,revenues:fund.revenues,marketCap:fund.marketCap,
+        pe,pb,roe,roa,debtEbitda,fcfYield,divYield,eps,revenues,marketCap,
         rsiW:last(rsiWA),macdW:last(macdWO.macd),macdSigW:last(macdWO.signal),
         wCloses:wc,wTimestamps:wk.t,
         rallies,drops,situation,
@@ -628,17 +646,18 @@ async function startLoad(){
   loading=false;
   document.getElementById('loadBtn').disabled=false;
   const ok=Object.values(stockData).filter(d=>d.loaded).length;
-  const fail=total-ok;
-  setStatus('ok · '+ok+' cargadas'+(fail?' · '+fail+' err':''),'ok');
+  setStatus('ok · '+ok+' cargadas'+(total-ok?' · '+(total-ok)+' err':''),'ok');
   bar.style.display='none';
   renderTable();
 }
 
+// ── FORMAT ──
 const fN=(v,d=2)=>{if(v===null||v===undefined)return'—';const n=parseFloat(v);return isNaN(n)?'—':n.toFixed(d);};
 const fP=v=>{if(v===null||v===undefined)return'—';return'$'+parseFloat(v).toFixed(2);};
 const fPct=(v,d=1)=>{if(v===null||v===undefined)return'—';const n=parseFloat(v);return isNaN(n)?'—':(n>=0?'+':'')+n.toFixed(d)+'%';};
-const clr=v=>v===null?'':(v>=0?'color:var(--green)':'color:var(--red)');
+const clr=v=>v===null?'':(parseFloat(v)>=0?'color:var(--green)':'color:var(--red)');
 
+// ── RENDER TABLE ──
 function renderTable(){
   const filter=document.getElementById('filterInput').value.toLowerCase();
   sortKey=document.getElementById('sortCol').value;
@@ -689,13 +708,132 @@ function renderTable(){
     tbody.appendChild(tr);
   }
 }
-
 function sortBy(col){
   if(sortKey===col)document.getElementById('sortDir').value=sortDir==='desc'?'asc':'desc';
   else{document.getElementById('sortCol').value=col;document.getElementById('sortDir').value='desc';}
   renderTable();
   document.querySelectorAll('thead th').forEach(th=>th.classList.remove('sorted'));
   const el=document.getElementById('th-'+col);if(el)el.classList.add('sorted');
+}
+
+// ── DETAIL ──
+function buildFundHtml(d){
+  return[
+    {l:'P/E',v:fN(d.pe,1)},{l:'P/B',v:fN(d.pb,1)},
+    {l:'D/EBITDA',v:d.debtEbitda!=null?fN(d.debtEbitda,1)+'x':'—'},
+    {l:'FCF YLD',v:d.fcfYield!=null?fN(d.fcfYield,1)+'%':'—'},
+    {l:'DIV YLD',v:d.divYield!=null?fN(d.divYield,2)+'%':'—'},
+    {l:'EPS',v:d.eps!=null?'$'+fN(d.eps,2):'—'},
+    {l:'ROE',v:d.roe!=null?fN(d.roe,1)+'%':'—',cls:d.roe>15?'up':d.roe<0?'down':''},
+    {l:'ROA',v:d.roa!=null?fN(d.roa,1)+'%':'—',cls:d.roa>5?'up':d.roa<0?'down':''},
+    {l:'MKT CAP',v:d.marketCap!=null?'$'+(d.marketCap/1e12>0.1?(d.marketCap/1e12).toFixed(2)+'T':(d.marketCap/1e9).toFixed(1)+'B'):'—'},
+  ].map(f=>`<div class="fc"><div class="fl">${f.l}</div><div class="fv ${f.cls||''}">${f.v}</div></div>`).join('');
+}
+
+function buildEcoHtml(d){
+  if(!d.rallies&&!d.drops)return'<div class="loading-msg">Sin datos suficientes</div>';
+
+  const tableHeader=(isRally)=>`<thead><tr>
+    <th style="text-align:left;">#</th>
+    <th style="text-align:left;" ${isRally?'':'class="rh"'}>Movimiento</th>
+    <th style="text-align:left;" ${isRally?'':'class="rh"'}>Fechas</th>
+    <th ${isRally?'':'class="rh"'}>Precio ini</th>
+    <th ${isRally?'':'class="rh"'}>Precio fin</th>
+    <th ${isRally?'':'class="rh"'}>Mov %</th>
+    <th ${isRally?'':'class="rh"'}>Ruedas</th>
+    <th ${isRally?'':'class="rh"'}>Semanas</th>
+  </tr></thead>`;
+
+  const fmtRow=(seg,i,isRally)=>{
+    const fu=findFollowup(seg,d.wCloses,d.wTimestamps);
+    const movCls=isRally?'mov-up':'mov-down';
+    const subMovCls=isRally?'mov-down':'mov-up';
+    const label=isRally?`Rally ${fPct(seg.pct)}`:`Caída ${fPct(seg.pct)}`;
+    const subLabel=isRally?'↳ derrape':'↳ rebote';
+    let html=`<tr class="main-row">
+      <td>${i+1}</td>
+      <td class="${movCls}">${label}</td>
+      <td>${seg.from} → ${seg.to}</td>
+      <td>${fP(seg.priceFrom)}</td>
+      <td class="${movCls}">${fP(seg.priceTo)}</td>
+      <td class="${movCls}">${fPct(seg.pct)}</td>
+      <td>${seg.bars}</td>
+      <td>${seg.weeks}</td>
+    </tr>`;
+    if(fu){html+=`<tr class="sub-row">
+      <td></td>
+      <td class="${subMovCls}">${subLabel}</td>
+      <td>${fu.from} → ${fu.to}</td>
+      <td>${fP(fu.priceFrom)}</td>
+      <td>${fP(fu.priceTo)}</td>
+      <td class="${subMovCls}">${fPct(fu.pct)}</td>
+      <td>${fu.bars}</td>
+      <td>${fu.weeks}</td>
+    </tr>`;}
+    return html;
+  };
+
+  const rallies=d.rallies||[],drops=d.drops||[];
+  const avg=arr=>arr.length?+(arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1):null;
+  const med=arr=>{if(!arr.length)return null;const s=[...arr].sort((a,b)=>a-b);const m=Math.floor(s.length/2);return s.length%2?+s[m].toFixed(1):+((s[m-1]+s[m])/2).toFixed(1);};
+
+  const sit=d.situation;
+  let sitHtml='';
+  if(sit&&sit.lastPeak&&sit.lastValley){
+    const curDrop=((sit.lastPrice/sit.lastPeak.price)-1)*100;
+    const curRally=((sit.lastPrice/sit.lastValley.price)-1)*100;
+    const wksFromPeak=((Date.now()/1000-sit.lastPeak.ts)/(7*24*3600)).toFixed(0);
+    const wksFromValley=((Date.now()/1000-sit.lastValley.ts)/(7*24*3600)).toFixed(0);
+    const worstDrop=drops.length?drops[drops.length-1].pct:null;
+    sitHtml=`<div class="eco-current">
+      <div class="eco-current-title">— Situación actual — ${fP(sit.lastPrice)}</div>
+      <div style="margin-bottom:4px;">
+        <span class="eco-lbl">Desde último pico</span>
+        <span style="color:#fff;">$${sit.lastPeak.price.toFixed(2)}</span>
+        <span style="color:var(--text3);"> (${fmtDate(sit.lastPeak.ts)})</span>
+        <span style="${clr(curDrop)}"> → ${fPct(curDrop)}</span>
+        <span style="color:var(--text3);"> en ${wksFromPeak} semanas</span>
+        ${sit.percentile!==null?`<span style="color:var(--text3);"> · percentil ${sit.percentile} de caídas históricas</span>`:''}
+        ${worstDrop?`<span style="color:var(--text3);"> (máx. registrada ${fPct(worstDrop)})</span>`:''}
+      </div>
+      <div style="margin-bottom:4px;">
+        <span class="eco-lbl">Desde último valle</span>
+        <span style="color:#fff;">$${sit.lastValley.price.toFixed(2)}</span>
+        <span style="color:var(--text3);"> (${fmtDate(sit.lastValley.ts)})</span>
+        <span style="${clr(curRally)}"> → ${fPct(curRally)}</span>
+        <span style="color:var(--text3);"> en ${wksFromValley} semanas</span>
+      </div>
+      ${sit.similarFwd?`
+      <div style="margin-top:6px;margin-bottom:4px;">
+        <span class="eco-lbl">Retornos históricos después de caídas similares</span>
+        <span style="color:var(--text3);">(${sit.similarFwd.n} episodios comparables)</span>
+      </div>
+      <div class="eco-fwd">
+        <div class="eco-fwd-item"><div class="eco-fwd-lbl">+10 ruedas</div><div class="eco-fwd-val" style="${clr(sit.similarFwd.r10.avg)}">${sit.similarFwd.r10.avg!==null?fPct(sit.similarFwd.r10.avg):'—'}</div><div class="eco-fwd-bull">${sit.similarFwd.r10.bull!==null?sit.similarFwd.r10.bull+'% alcista':''}</div></div>
+        <div class="eco-fwd-item"><div class="eco-fwd-lbl">+20 ruedas</div><div class="eco-fwd-val" style="${clr(sit.similarFwd.r20.avg)}">${sit.similarFwd.r20.avg!==null?fPct(sit.similarFwd.r20.avg):'—'}</div><div class="eco-fwd-bull">${sit.similarFwd.r20.bull!==null?sit.similarFwd.r20.bull+'% alcista':''}</div></div>
+        <div class="eco-fwd-item"><div class="eco-fwd-lbl">+40 ruedas</div><div class="eco-fwd-val" style="${clr(sit.similarFwd.r40.avg)}">${sit.similarFwd.r40.avg!==null?fPct(sit.similarFwd.r40.avg):'—'}</div><div class="eco-fwd-bull">${sit.similarFwd.r40.bull!==null?sit.similarFwd.r40.bull+'% alcista':''}</div></div>
+      </div>`:''}
+    </div>`;
+  }
+
+  return`
+    <div class="eco-section">
+      <div class="eco-hd"><span class="eco-hd-up">▲</span> <span class="eco-hd-label-up">MAYORES RALLIES HISTÓRICOS</span></div>
+      <table class="eco-table">${tableHeader(true)}<tbody>${rallies.map((r,i)=>fmtRow(r,i,true)).join('')}</tbody></table>
+    </div>
+    <hr class="eco-divider"/>
+    <div class="eco-section">
+      <div class="eco-hd"><span class="eco-hd-down">▼</span> <span class="eco-hd-label-down">MAYORES CAÍDAS HISTÓRICAS</span></div>
+      <table class="eco-table">${tableHeader(false)}<tbody>${drops.map((r,i)=>fmtRow(r,i,false)).join('')}</tbody></table>
+    </div>
+    <hr class="eco-divider"/>
+    <div class="eco-section">
+      <div class="eco-stats">
+        <div class="eco-stats-row"><span class="eco-lbl">Rallies:</span> promedio <span style="color:var(--green);">${fPct(avg(rallies.map(r=>r.pct)))}</span> &nbsp; mediana <span style="color:var(--green);">${fPct(med(rallies.map(r=>r.pct)))}</span> &nbsp; duración prom <span style="color:#fff;">${avg(rallies.map(r=>r.bars))!==null?avg(rallies.map(r=>r.bars)).toFixed(0):'—'} ruedas (${avg(rallies.map(r=>r.weeks))!==null?avg(rallies.map(r=>r.weeks)).toFixed(1):'—'} sem)</span></div>
+        <div class="eco-stats-row"><span class="eco-lbl">Caídas:</span> &nbsp;promedio <span style="color:var(--red);">${fPct(avg(drops.map(r=>r.pct)))}</span> &nbsp; mediana <span style="color:var(--red);">${fPct(med(drops.map(r=>r.pct)))}</span> &nbsp; duración prom <span style="color:#fff;">${avg(drops.map(r=>r.bars))!==null?avg(drops.map(r=>r.bars)).toFixed(0):'—'} ruedas (${avg(drops.map(r=>r.weeks))!==null?avg(drops.map(r=>r.weeks)).toFixed(1):'—'} sem)</span></div>
+      </div>
+    </div>
+    ${sitHtml}`;
 }
 
 function openDetail(ticker){
@@ -705,157 +843,16 @@ function openDetail(ticker){
   document.getElementById('detail').classList.add('open');
   const up=(d.chgPct??0)>=0;
   document.getElementById('dSym').textContent=d.ticker;
-  const pe=document.getElementById('dPrice');
-  pe.textContent=d.price!=null?'$'+d.price.toFixed(2):'—';
-  pe.style.color=up?'var(--green)':'var(--red)';
-  const ce=document.getElementById('dChg');
-  ce.textContent=d.chgPct!=null?(up?'+':'')+d.chg?.toFixed(2)+'  ('+(up?'+':'')+d.chgPct.toFixed(2)+'%)':'';
-  ce.style.color=up?'var(--green)':'var(--red)';
-
-  // TradingView button
+  const priceEl=document.getElementById('dPrice');
+  priceEl.textContent=d.price!=null?'$'+d.price.toFixed(2):'—';
+  priceEl.style.color=up?'var(--green)':'var(--red)';
+  const chgEl=document.getElementById('dChg');
+  chgEl.textContent=d.chgPct!=null?(up?'+':'')+d.chg?.toFixed(2)+'  ('+(up?'+':'')+d.chgPct.toFixed(2)+'%)':'';
+  chgEl.style.color=up?'var(--green)':'var(--red)';
   document.getElementById('dTVBtn').onclick=()=>window.open(`https://www.tradingview.com/chart/?symbol=${ticker}&interval=W`,'_blank');
-
-  // 52w range
-  document.getElementById('d52w').innerHTML=d.high52&&d.low52
-    ?`52w: <span>$${d.low52.toFixed(2)}</span> — <span>$${d.high52.toFixed(2)}</span> &nbsp;|&nbsp; ${d.totalPivots||0} min/max locales detectados`:'';
-
-  // Fundamentals
-  document.getElementById('dFund').innerHTML=[
-    {l:'P/E',v:fN(d.pe,1)},{l:'P/B',v:fN(d.pb,1)},
-    {l:'D/EBITDA',v:d.debtEbitda!=null?fN(d.debtEbitda,1)+'x':'—'},
-    {l:'FCF YLD',v:d.fcfYield!=null?fN(d.fcfYield,1)+'%':'—'},
-    {l:'DIV YLD',v:d.divYield!=null?fN(d.divYield,2)+'%':'—'},
-    {l:'EPS',v:d.eps!=null?'$'+fN(d.eps,2):'—'},
-    {l:'ROE',v:d.roe!=null?fN(d.roe,1)+'%':'—',cls:d.roe>15?'up':d.roe<0?'down':''},
-    {l:'ROA',v:d.roa!=null?fN(d.roa,1)+'%':'—',cls:d.roa>5?'up':d.roa<0?'down':''},
-    {l:'MKT CAP',v:d.marketCap!=null?'$'+(d.marketCap/1e12).toFixed(2)+'T':'—'},
-  ].map(f=>`<div class="fc"><div class="fl">${f.l}</div><div class="fv ${f.cls||''}">${f.v}</div></div>`).join('');
-
-  renderEco(d);
-}
-
-function renderEco(d){
-  const eco=document.getElementById('dEco');
-  if(!d.rallies&&!d.drops){eco.innerHTML='<div class="loading-msg">Sin datos suficientes</div>';return;}
-
-  const fmtRow=(seg,i,type)=>{
-    const fu=findFollowup(seg,d.wCloses,d.wTimestamps);
-    const mainColor=type==='rally'?'var(--green)':'var(--red)';
-    const subColor=type==='rally'?'var(--red)':'var(--green)';
-    const label=type==='rally'?`Rally ${fPct(seg.pct)}`:`Caída ${fPct(seg.pct)}`;
-    const subLabel=type==='rally'?'↳ derrape':'↳ rebote';
-    let html=`<tr class="main-row">
-      <td>${i+1}</td>
-      <td style="color:${mainColor};font-weight:500;">${label}</td>
-      <td>${seg.from} → ${seg.to}</td>
-      <td>${fP(seg.priceFrom)}</td>
-      <td style="color:${mainColor};font-weight:500;">${fP(seg.priceTo)}</td>
-      <td style="color:${mainColor};">${fPct(seg.pct)}</td>
-      <td>${seg.bars}</td>
-      <td>${seg.weeks.toFixed(1)}</td>
-    </tr>`;
-    if(fu){
-      html+=`<tr class="sub-row">
-        <td></td>
-        <td style="color:${subColor};">${subLabel}</td>
-        <td>${fu.from} → ${fu.to}</td>
-        <td>${fP(fu.priceFrom)}</td>
-        <td>${fP(fu.priceTo)}</td>
-        <td style="color:${subColor};">${fPct(fu.pct)}</td>
-        <td>${fu.bars}</td>
-        <td>${fu.weeks.toFixed(1)}</td>
-      </tr>`;
-    }
-    return html;
-  };
-
-  const tableHeader=`<thead><tr>
-    <th style="text-align:left;">#</th>
-    <th style="text-align:left;">Movimiento</th>
-    <th style="text-align:left;">Fechas</th>
-    <th>Precio ini</th><th>Precio fin</th>
-    <th>Mov %</th><th>Ruedas</th><th>Semanas</th>
-  </tr></thead>`;
-
-  // Stats
-  const rallies=d.rallies||[],drops=d.drops||[];
-  const avg=arr=>arr.length?+(arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1):null;
-  const median=arr=>{if(!arr.length)return null;const s=[...arr].sort((a,b)=>a-b);const m=Math.floor(s.length/2);return s.length%2?+s[m].toFixed(1):+((s[m-1]+s[m])/2).toFixed(1);};
-  const rallyPcts=rallies.map(r=>r.pct),dropPcts=drops.map(r=>r.pct);
-  const rallyBars=rallies.map(r=>r.bars),dropBars=drops.map(r=>r.bars);
-
-  // Current situation
-  const sit=d.situation;
-  let situationHtml='';
-  if(sit&&sit.lastPeak&&sit.lastValley){
-    const currentDrop=((sit.lastPrice/sit.lastPeak.price)-1)*100;
-    const currentRally=((sit.lastPrice/sit.lastValley.price)-1)*100;
-    const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const fmtD=ts=>{const d=new Date(ts*1000);return d.getDate()+'-'+mo[d.getMonth()]+'-'+d.getFullYear().toString().slice(2);};
-    const worstDrop=drops.length?drops[drops.length-1].pct:null;
-
-    situationHtml=`<div class="eco-current">
-      <div class="eco-current-title">— Situación actual — ${fP(sit.lastPrice)}</div>
-      <div class="eco-current-row">
-        <span class="eco-label">Desde último pico</span>
-        <span style="color:#fff;">$${sit.lastPeak.price.toFixed(2)}</span>
-        <span style="color:var(--text3);"> (${fmtD(sit.lastPeak.ts)})</span>
-        <span style="${clr(currentDrop)};"> → ${fPct(currentDrop)}</span>
-        <span style="color:var(--text3);"> en ${((Date.now()/1000-sit.lastPeak.ts)/(7*24*3600)).toFixed(0)} semanas</span>
-        ${sit.percentile!==null?`<span style="color:var(--text3);"> · percentil ${sit.percentile} de caídas históricas</span>`:''}
-        ${worstDrop?`<span style="color:var(--text3);"> (máx. registrada ${fPct(worstDrop)})</span>`:''}
-      </div>
-      <div class="eco-current-row">
-        <span class="eco-label">Desde último valle</span>
-        <span style="color:#fff;">$${sit.lastValley.price.toFixed(2)}</span>
-        <span style="color:var(--text3);"> (${fmtD(sit.lastValley.ts)})</span>
-        <span style="${clr(currentRally)};"> → ${fPct(currentRally)}</span>
-      </div>
-      ${sit.similarFwd?`
-      <div class="eco-current-row" style="margin-top:6px;">
-        <span class="eco-label">Retornos históricos después de caídas similares</span>
-        <span style="color:var(--text3);">(${sit.similarFwd.n} episodios comparables)</span>
-      </div>
-      <div class="eco-pct-row">
-        <div class="eco-pct-item">
-          <div class="eco-pct-label">+10 ruedas</div>
-          <div class="eco-pct-val" style="${clr(sit.similarFwd.r10.avg)}">${sit.similarFwd.r10.avg!==null?fPct(sit.similarFwd.r10.avg):'—'}</div>
-          <div class="eco-pct-label">${sit.similarFwd.r10.bull!==null?sit.similarFwd.r10.bull+'% alcista':''}</div>
-        </div>
-        <div class="eco-pct-item">
-          <div class="eco-pct-label">+20 ruedas</div>
-          <div class="eco-pct-val" style="${clr(sit.similarFwd.r20.avg)}">${sit.similarFwd.r20.avg!==null?fPct(sit.similarFwd.r20.avg):'—'}</div>
-          <div class="eco-pct-label">${sit.similarFwd.r20.bull!==null?sit.similarFwd.r20.bull+'% alcista':''}</div>
-        </div>
-        <div class="eco-pct-item">
-          <div class="eco-pct-label">+40 ruedas</div>
-          <div class="eco-pct-val" style="${clr(sit.similarFwd.r40.avg)}">${sit.similarFwd.r40.avg!==null?fPct(sit.similarFwd.r40.avg):'—'}</div>
-          <div class="eco-pct-label">${sit.similarFwd.r40.bull!==null?sit.similarFwd.r40.bull+'% alcista':''}</div>
-        </div>
-      </div>`:''}
-    </div>`;
-  }
-
-  eco.innerHTML=`
-    <div class="eco-section">
-      <div class="eco-hd"><span class="eco-hd-up">▲</span> MAYORES RALLIES HISTÓRICOS</div>
-      <table class="eco-table">${tableHeader}<tbody>${rallies.map((r,i)=>fmtRow(r,i,'rally')).join('')}</tbody></table>
-    </div>
-    <div class="eco-section">
-      <div class="eco-hd"><span class="eco-hd-down">▼</span> MAYORES CAÍDAS HISTÓRICAS</div>
-      <table class="eco-table">${tableHeader}<tbody>${drops.map((r,i)=>fmtRow(r,i,'drop')).join('')}</tbody></table>
-    </div>
-    <div class="eco-section">
-      <div class="eco-stats">
-        <div class="eco-stats-row">
-          <span><span class="eco-label">Rallies:</span> promedio <span style="color:var(--green);">${avg(rallyPcts)!==null?fPct(avg(rallyPcts)):'—'}</span> &nbsp; mediana <span style="color:var(--green);">${median(rallyPcts)!==null?fPct(median(rallyPcts)):'—'}</span> &nbsp; duración prom <span style="color:#fff;">${avg(rallyBars)!==null?avg(rallyBars).toFixed(0):' —'} ruedas (${avg(rallyBars)!==null?(avg(rallyBars)/5).toFixed(1):' —'} sem)</span></span>
-        </div>
-        <div class="eco-stats-row">
-          <span><span class="eco-label">Caídas:</span> &nbsp;promedio <span style="color:var(--red);">${avg(dropPcts)!==null?fPct(avg(dropPcts)):'—'}</span> &nbsp; mediana <span style="color:var(--red);">${median(dropPcts)!==null?fPct(median(dropPcts)):'—'}</span> &nbsp; duración prom <span style="color:#fff;">${avg(dropBars)!==null?avg(dropBars).toFixed(0):'—'} ruedas (${avg(dropBars)!==null?(avg(dropBars)/5).toFixed(1):'—'} sem)</span></span>
-        </div>
-      </div>
-    </div>
-    ${situationHtml}`;
+  document.getElementById('d52w').innerHTML=d.high52&&d.low52?`52w: <span>$${d.low52.toFixed(2)}</span> — <span>$${d.high52.toFixed(2)}</span> &nbsp;|&nbsp; ${d.totalPivots||0} min/max locales detectados`:'';
+  document.getElementById('dFund').innerHTML=buildFundHtml(d);
+  document.getElementById('dEco').innerHTML=buildEcoHtml(d);
 }
 
 function openFullscreen(){
@@ -863,8 +860,6 @@ function openFullscreen(){
   const up=(d.chgPct??0)>=0;
   document.getElementById('fsTitleSym').textContent=d.ticker;
   document.getElementById('fsTVBtn').onclick=()=>window.open(`https://www.tradingview.com/chart/?symbol=${d.ticker}&interval=W`,'_blank');
-
-  // meta bar
   document.getElementById('fsMeta').innerHTML=`
     <span style="font-size:22px;font-weight:500;color:${up?'var(--green)':'var(--red)'};">${fP(d.price)}</span>
     <span style="${up?'color:var(--green)':'color:var(--red)'};">${fPct(d.chgPct)} hoy</span>
@@ -872,29 +867,12 @@ function openFullscreen(){
     <span class="d-52w">${d.high52&&d.low52?`52w: <span style="color:#fff;">$${d.low52.toFixed(2)}</span> — <span style="color:#fff;">$${d.high52.toFixed(2)}</span>`:''}</span>
     <span style="color:var(--text3);">|</span>
     <span style="color:var(--text3);">${d.totalPivots||0} min/max locales detectados</span>`;
-
-  // fundamentals
-  document.getElementById('fsFund').innerHTML=[
-    {l:'P/E',v:fN(d.pe,1)},{l:'P/B',v:fN(d.pb,1)},
-    {l:'D/EBITDA',v:d.debtEbitda!=null?fN(d.debtEbitda,1)+'x':'—'},
-    {l:'FCF YLD',v:d.fcfYield!=null?fN(d.fcfYield,1)+'%':'—'},
-    {l:'DIV YLD',v:d.divYield!=null?fN(d.divYield,2)+'%':'—'},
-    {l:'EPS',v:d.eps!=null?'$'+fN(d.eps,2):'—'},
-    {l:'ROE',v:d.roe!=null?fN(d.roe,1)+'%':'—',cls:d.roe>15?'up':d.roe<0?'down':''},
-    {l:'ROA',v:d.roa!=null?fN(d.roa,1)+'%':'—',cls:d.roa>5?'up':d.roa<0?'down':''},
-    {l:'MKT CAP',v:d.marketCap!=null?'$'+(d.marketCap/1e12).toFixed(2)+'T':'—'},
-  ].map(f=>`<div class="fc"><div class="fl">${f.l}</div><div class="fv ${f.cls||''}">${f.v}</div></div>`).join('');
-
-  // econometric — reuse same render logic into fsEco
-  const fsEco=document.getElementById('fsEco');
-  fsEco.innerHTML=document.getElementById('dEco').innerHTML;
-
+  document.getElementById('fsFund').innerHTML=buildFundHtml(d);
+  document.getElementById('fsEco').innerHTML=buildEcoHtml(d);
   document.getElementById('fsOverlay').classList.add('open');
 }
+function closeFullscreen(){document.getElementById('fsOverlay').classList.remove('open');}
 
-function closeFullscreen(){
-  document.getElementById('fsOverlay').classList.remove('open');
-}
 function closeDetail(){
   selectedTicker=null;
   document.getElementById('left').classList.remove('split');
