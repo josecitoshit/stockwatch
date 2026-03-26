@@ -130,8 +130,8 @@ tbody tr.sel td:first-child{background:var(--bg4);}
 .mfoot{padding:10px 20px;border-top:1px solid var(--border2);display:flex;justify-content:flex-end;gap:8px;}
 #emptyState{text-align:center;padding:60px 20px;color:var(--text3);font-size:12px;line-height:2.2;}
 #emptyState a{color:var(--green);}
-#fsOverlay{display:none;position:fixed;inset:0;background:#0f0f0f;z-index:200;flex-direction:column;overflow:hidden;}
-#fsOverlay.open{display:flex;}
+#fsOverlay{display:none;position:fixed;inset:0;background:#0f0f0f;z-index:200;flex-direction:column;overflow:hidden;pointer-events:none;}
+#fsOverlay.open{display:flex;pointer-events:all;}
 #fsTopbar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid var(--border2);flex-shrink:0;background:#0f0f0f;}
 #fsTitle{font-size:15px;font-weight:500;color:#fff;letter-spacing:.08em;}
 #fsTitle span{color:var(--green);}
@@ -291,105 +291,11 @@ tbody tr.sel td:first-child{background:var(--bg4);}
 </div>
 
 <script>
-const DEFAULT_TICKERS = `AAPL
-MSFT
-NVDA
-AMZN
-GOOGL
-META
-TSLA
-AVGO
-LLY
-JPM
-V
-UNH
-XOM
-MA
-HD
-PG
-COST
-JNJ
-ABBV
-BAC
-NFLX
-CRM
-AMD
-MRK
-ORCL
-WMT
-CVX
-KO
-PEP
-TMO
-ACN
-MCD
-ABT
-CSCO
-DHR
-ADBE
-TXN
-LIN
-NKE
-NEE
-PM
-QCOM
-AMGN
-IBM
-INTU
-GS
-HON
-UNP
-LOW
-CAT
-SPGI
-MS
-RTX
-AXP
-BLK
-DE
-SYK
-GILD
-ISRG
-MDLZ
-ADI
-REGN
-PLD
-MMC
-CI
-ZTS
-T
-BMY
-SHW
-PANW
-KLAC
-MU
-LRCX
-NOW
-SNPS
-CDNS
-APH
-FTNT
-MRVL
-CRWD
-ANET
-WDAY
-TTD
-COIN
-DDOG
-ZS
-NET
-SNOW
-MDB
+const DEFAULT_TICKERS = `PYPL
 MELI
-SHOP
-TEAM
-PYPL
-SQ
-UBER
-ABNB
-ROKU
-PINS
-SNAP`.split('\n').map(t=>t.trim()).filter(Boolean).slice(0,100);
+NU
+JD
+UNH`.split('\n').map(t=>t.trim()).filter(Boolean).slice(0,100);
 
 let tickers=[...DEFAULT_TICKERS],stockData={},loading=false,selectedTicker=null;
 let sortKey='chgPct',sortDir='desc';
