@@ -130,6 +130,24 @@ tbody tr.sel td:first-child{background:var(--bg4);}
 .mfoot{padding:10px 20px;border-top:1px solid var(--border2);display:flex;justify-content:flex-end;gap:8px;}
 #emptyState{text-align:center;padding:60px 20px;color:var(--text3);font-size:12px;line-height:2.2;}
 #emptyState a{color:var(--green);}
+#fsOverlay{display:none;position:fixed;inset:0;background:#0f0f0f;z-index:200;flex-direction:column;overflow:hidden;}
+#fsOverlay.open{display:flex;}
+#fsTopbar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid var(--border2);flex-shrink:0;background:#0f0f0f;}
+#fsTitle{font-size:15px;font-weight:500;color:#fff;letter-spacing:.08em;}
+#fsTitle span{color:var(--green);}
+#fsClose{background:transparent;border:1px solid var(--border2);color:var(--text3);border-radius:2px;padding:4px 12px;cursor:pointer;font-family:var(--mono);font-size:11px;}
+#fsClose:hover{color:var(--green);border-color:var(--green);}
+#fsBody{flex:1;overflow-y:auto;padding:20px 40px;}
+#fsBody::-webkit-scrollbar{width:4px;}
+#fsBody::-webkit-scrollbar-thumb{background:var(--bg4);}
+#fsMeta{display:flex;align-items:center;gap:24px;margin-bottom:14px;flex-wrap:wrap;font-size:12px;}
+#fsFund{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:6px;margin-bottom:20px;}
+#fsEco .eco-table{font-size:12px;}
+#fsEco .eco-table th{font-size:11px;padding:6px 10px;}
+#fsEco .eco-table td{padding:5px 10px;}
+#fsEco .eco-stats{font-size:12px;padding:12px 16px;}
+#fsEco .eco-current{font-size:12px;padding:12px 16px;}
+#fsEco .eco-section{margin-bottom:20px;}
 </style>
 </head>
 <body>
@@ -229,7 +247,10 @@ tbody tr.sel td:first-child{background:var(--bg4);}
           <div class="d-price" id="dPrice"></div>
           <div class="d-chg" id="dChg"></div>
         </div>
-        <button id="dClose" onclick="closeDetail()">✕ CERRAR</button>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn" id="dFullBtn" onclick="openFullscreen()">⛶ PANTALLA COMPLETA</button>
+          <button id="dClose" onclick="closeDetail()">✕ CERRAR</button>
+        </div>
       </div>
       <div class="d-topbar">
         <button class="btn tv" id="dTVBtn">↗ VER EN TRADINGVIEW</button>
@@ -240,6 +261,21 @@ tbody tr.sel td:first-child{background:var(--bg4);}
     </div>
   </div>
 </div>
+</div>
+
+<div id="fsOverlay">
+  <div id="fsTopbar">
+    <div id="fsTitle"><span id="fsTitleSym"></span> — Análisis Econométrico</div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="btn tv" id="fsTVBtn">↗ TRADINGVIEW</button>
+      <button id="fsClose" onclick="closeFullscreen()">✕ CERRAR</button>
+    </div>
+  </div>
+  <div id="fsBody">
+    <div id="fsMeta"></div>
+    <div id="fsFund"></div>
+    <div id="fsEco"></div>
+  </div>
 </div>
 
 <div id="tickerEditor">
@@ -421,7 +457,7 @@ const last=arr=>{const a=arr.filter(v=>v!==null);return a.length?a[a.length-1]:n
 
 // ── PIVOT DETECTION ──
 // Detects local highs and lows in weekly closes using a window
-function detectPivots(closes,timestamps,window=3){
+function detectPivots(closes,timestamps,window=5){
   const pivots=[];
   for(let i=window;i<closes.length-window;i++){
     if(closes[i]===null)continue;
@@ -451,8 +487,8 @@ function buildSegments(closes,timestamps){
     const fmtDate=d=>{const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return d.getDate()+'-'+mo[d.getMonth()]+'-'+d.getFullYear().toString().slice(2);}
     segments.push({from:fmtDate(dtA),to:fmtDate(dtB),priceFrom:a.price,priceTo:b.price,pct,bars,weeks,fromTs:a.ts,toTs:b.ts,fromIdx:a.idx,toIdx:b.idx});
   }
-  const rallies=segments.filter(s=>s.pct>5).sort((a,b)=>b.pct-a.pct).slice(0,5);
-  const drops=segments.filter(s=>s.pct<-5).sort((a,b)=>a.pct-b.pct).slice(0,5);
+  const rallies=segments.filter(s=>s.pct>10).sort((a,b)=>b.pct-a.pct).slice(0,5);
+  const drops=segments.filter(s=>s.pct<-10).sort((a,b)=>a.pct-b.pct).slice(0,5);
   return{rallies,drops,all:segments};
 }
 
@@ -515,7 +551,7 @@ function currentSituation(closes,timestamps,all){
   }
 
   // percentile of current drop vs historical drops
-  const drops=all?all.filter(s=>s.pct<-5):[];
+  const drops=all?all.filter(s=>s.pct<-10):[];
   let percentile=null;
   if(drops.length&&lastPeak){
     const currentDrop=((lastPrice/lastPeak.price)-1)*100;
@@ -574,7 +610,7 @@ function parseFinvizPct(html,label){
   return parseFloat(v.replace('%','').replace(',',''));
 }
 async function yahooFetch(ticker){
-  const p2=Math.floor(Date.now()/1000),p1=p2-1200*24*3600; // ~3.3 years for better history
+  const p2=Math.floor(Date.now()/1000),p1=p2-3650*24*3600; // ~10 years
   const url=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&period1=${p1}&period2=${p2}&includePrePost=false`;
   const data=await proxyFetch(url);
   if(data.chart?.error)throw new Error(data.chart.error.description||'Yahoo error');
@@ -634,7 +670,9 @@ async function startLoad(){
       const ts=chart.timestamp||[],closes=quotes.close||[],opens=quotes.open||[];
       const highs=quotes.high||[],lows=quotes.low||[],vols=quotes.volume||[];
       const price=meta.regularMarketPrice??last(closes);
-      const prevClose=meta.chartPreviousClose??meta.previousClose??null;
+      // Use last two valid daily closes for accurate day-over-day change
+      const validCloses=closes.filter(v=>v!==null&&v!==undefined);
+      const prevClose=validCloses.length>=2?validCloses[validCloses.length-2]:(meta.chartPreviousClose??meta.previousClose??null);
       const chg=(price&&prevClose)?price-prevClose:null;
       const chgPct=(price&&prevClose)?((price/prevClose)-1)*100:null;
       const cutoff=Date.now()/1000-365*24*3600;
@@ -773,7 +811,7 @@ function openDetail(ticker){
 
   // 52w range
   document.getElementById('d52w').innerHTML=d.high52&&d.low52
-    ?`52w: <span>$${d.low52.toFixed(2)}</span> — <span>$${d.high52.toFixed(2)}</span> &nbsp;|&nbsp; ${d.totalPivots||0} pivotes detectados`:'';
+    ?`52w: <span>$${d.low52.toFixed(2)}</span> — <span>$${d.high52.toFixed(2)}</span> &nbsp;|&nbsp; ${d.totalPivots||0} min/max locales detectados`:'';
 
   // Fundamentals
   document.getElementById('dFund').innerHTML=[
@@ -914,7 +952,43 @@ function renderEco(d){
     ${situationHtml}`;
 }
 
-function closeDetail(){
+function openFullscreen(){
+  const d=stockData[selectedTicker];if(!d||!d.loaded)return;
+  const up=(d.chgPct??0)>=0;
+  document.getElementById('fsTitleSym').textContent=d.ticker;
+  document.getElementById('fsTVBtn').onclick=()=>window.open(`https://www.tradingview.com/chart/?symbol=${d.ticker}&interval=W`,'_blank');
+
+  // meta bar
+  document.getElementById('fsMeta').innerHTML=`
+    <span style="font-size:22px;font-weight:500;color:${up?'var(--green)':'var(--red)'};">${fP(d.price)}</span>
+    <span style="${up?'color:var(--green)':'color:var(--red)'};">${fPct(d.chgPct)} hoy</span>
+    <span style="color:var(--text3);">|</span>
+    <span class="d-52w">${d.high52&&d.low52?`52w: <span style="color:#fff;">$${d.low52.toFixed(2)}</span> — <span style="color:#fff;">$${d.high52.toFixed(2)}</span>`:''}</span>
+    <span style="color:var(--text3);">|</span>
+    <span style="color:var(--text3);">${d.totalPivots||0} min/max locales detectados</span>`;
+
+  // fundamentals
+  document.getElementById('fsFund').innerHTML=[
+    {l:'P/E',v:fN(d.pe,1)},{l:'P/B',v:fN(d.pb,1)},
+    {l:'D/EBITDA',v:d.debtEbitda!=null?fN(d.debtEbitda,1)+'x':'—'},
+    {l:'FCF YLD',v:d.fcfYield!=null?fN(d.fcfYield,1)+'%':'—'},
+    {l:'DIV YLD',v:d.divYield!=null?fN(d.divYield,2)+'%':'—'},
+    {l:'EPS',v:d.eps!=null?'$'+fN(d.eps,2):'—'},
+    {l:'ROE',v:d.roe!=null?fN(d.roe,1)+'%':'—',cls:d.roe>15?'up':d.roe<0?'down':''},
+    {l:'ROA',v:d.roa!=null?fN(d.roa,1)+'%':'—',cls:d.roa>5?'up':d.roa<0?'down':''},
+    {l:'MKT CAP',v:d.marketCap!=null?'$'+(d.marketCap/1e12).toFixed(2)+'T':'—'},
+  ].map(f=>`<div class="fc"><div class="fl">${f.l}</div><div class="fv ${f.cls||''}">${f.v}</div></div>`).join('');
+
+  // econometric — reuse same render logic into fsEco
+  const fsEco=document.getElementById('fsEco');
+  fsEco.innerHTML=document.getElementById('dEco').innerHTML;
+
+  document.getElementById('fsOverlay').classList.add('open');
+}
+
+function closeFullscreen(){
+  document.getElementById('fsOverlay').classList.remove('open');
+}
   selectedTicker=null;
   document.getElementById('left').classList.remove('split');
   document.getElementById('detail').classList.remove('open');
