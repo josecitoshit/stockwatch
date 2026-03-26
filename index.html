@@ -28,8 +28,8 @@ body{min-height:100vh;}
 #left.split{width:50%;}
 #detail{display:none;flex:1;border-left:1px solid var(--border);overflow-y:auto;background:var(--bg2);}
 #detail.open{display:block;}
-input[type="text"]{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:6px 10px;border-radius:5px;font-family:var(--mono);font-size:12px;outline:none;transition:border-color .15s;}
-input[type="text"]:focus{border-color:var(--blue);}
+input[type="text"],input[type="password"]{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:6px 10px;border-radius:5px;font-family:var(--mono);font-size:12px;outline:none;transition:border-color .15s;}
+input:focus{border-color:var(--blue);}
 .btn{padding:6px 14px;border-radius:5px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-family:var(--mono);font-size:12px;cursor:pointer;white-space:nowrap;transition:all .15s;}
 .btn:hover{border-color:var(--blue);color:var(--blue);}
 .btn.primary{background:var(--blue);color:#fff;border-color:var(--blue);}
@@ -110,8 +110,8 @@ tbody tr.sel td:first-child{background:var(--bg4);}
 <div id="topbar">
   <h1>STOCK<span>WATCH</span></h1>
   <div style="display:flex;align-items:center;gap:6px;">
-    <span style="font-size:11px;color:var(--text3);font-family:var(--mono);white-space:nowrap;">FMP KEY</span>
-    <input type="password" id="fmpKey" placeholder="xxxxxxxxxxxxxxxx" style="width:148px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:6px 10px;border-radius:5px;font-family:var(--mono);font-size:12px;outline:none;" />
+    <span style="font-size:11px;color:var(--text3);font-family:var(--mono);white-space:nowrap;">POLYGON KEY</span>
+    <input type="password" id="polyKey" placeholder="xxxxxxxxxxxxxxxx" style="width:148px;" />
   </div>
   <button class="btn primary" id="loadBtn" onclick="startLoad()">▶ Cargar todo</button>
   <button class="btn" onclick="openEditor()">Editar tickers</button>
@@ -137,10 +137,8 @@ tbody tr.sel td:first-child{background:var(--bg4);}
     <option value="distLow52">Dist. Mín 52s</option>
     <option value="pe">P/E</option>
     <option value="pb">P/B</option>
-    <option value="peg">PEG</option>
     <option value="debtEbitda">Debt/EBITDA</option>
     <option value="fcfYield">FCF Yield</option>
-    <option value="divYield">Div Yield</option>
     <option value="eps">EPS</option>
     <option value="roe">ROE</option>
     <option value="roa">ROA</option>
@@ -162,9 +160,9 @@ tbody tr.sel td:first-child{background:var(--bg4);}
   <div id="left">
     <div id="tableWrap">
       <div id="emptyState">
-        Yahoo Finance (técnicos) + Financial Modeling Prep (fundamentales)<br/>
-        Ingresá tu FMP key y presioná <strong>Cargar todo</strong><br/>
-        Key gratis en <a href="https://financialmodelingprep.com" target="_blank" style="color:var(--blue);">financialmodelingprep.com</a> · 250 calls/día<br/><br/>
+        Yahoo Finance (técnicos) + Polygon.io (fundamentales)<br/>
+        Ingresá tu Polygon key y presioná <strong>Cargar todo</strong><br/>
+        Key gratis en <a href="https://polygon.io" target="_blank" style="color:var(--blue);">polygon.io</a><br/><br/>
         <button class="btn" onclick="openEditor()" style="margin:0 auto;">Ver / editar tickers →</button>
       </div>
       <table id="dataTable" style="display:none;">
@@ -181,10 +179,8 @@ tbody tr.sel td:first-child{background:var(--bg4);}
           <th onclick="sortBy('distLow52')" id="th-distLow52">↑ MÍN52</th>
           <th onclick="sortBy('pe')" id="th-pe" class="th-sep">P/E</th>
           <th onclick="sortBy('pb')" id="th-pb">P/B</th>
-          <th onclick="sortBy('peg')" id="th-peg">PEG</th>
           <th onclick="sortBy('debtEbitda')" id="th-debtEbitda">D/EBITDA</th>
           <th onclick="sortBy('fcfYield')" id="th-fcfYield">FCF YLD</th>
-          <th onclick="sortBy('divYield')" id="th-divYield">DIV YLD</th>
           <th onclick="sortBy('eps')" id="th-eps">EPS</th>
           <th onclick="sortBy('roe')" id="th-roe">ROE</th>
           <th onclick="sortBy('roa')" id="th-roa">ROA</th>
@@ -341,18 +337,18 @@ ROKU
 PINS
 SNAP`.split('\n').map(t=>t.trim()).filter(Boolean).slice(0,100);
 
-let tickers=[...DEFAULT_TICKERS], stockData={}, loading=false, selectedTicker=null, dCharts={};
-let sortKey='chgPct', sortDir='desc';
+let tickers=[...DEFAULT_TICKERS],stockData={},loading=false,selectedTicker=null,dCharts={};
+let sortKey='chgPct',sortDir='desc';
 
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 
-async function withLimit(tasks, limit=4){
-  const results=[]; let i=0;
+async function withLimit(tasks,limit=3){
+  const results=[];let i=0;
   async function worker(){
     while(i<tasks.length){
       const idx=i++;
-      try{ results[idx]=await tasks[idx](); }
-      catch(e){ results[idx]={error:e.message}; }
+      try{results[idx]=await tasks[idx]();}
+      catch(e){results[idx]={error:e.message};}
     }
   }
   await Promise.all(Array.from({length:Math.min(limit,tasks.length)},worker));
@@ -368,9 +364,9 @@ function calcEMA(arr,n){
       if(i<n-1){out.push(null);continue;}
       const seed=arr.slice(Math.max(0,i-n+1),i+1).filter(v=>v!==null);
       if(seed.length<n){out.push(null);continue;}
-      prev=seed.reduce((a,b)=>a+b,0)/n; out.push(prev); continue;
+      prev=seed.reduce((a,b)=>a+b,0)/n;out.push(prev);continue;
     }
-    prev=arr[i]*k+prev*(1-k); out.push(prev);
+    prev=arr[i]*k+prev*(1-k);out.push(prev);
   }
   return out;
 }
@@ -410,55 +406,82 @@ function resampleWeekly(ts,o,h,l,c,v){
 }
 const last=arr=>{const a=arr.filter(v=>v!==null);return a.length?a[a.length-1]:null;};
 
-const PROXY_BASE = 'https://stockwatch-proxyjobo.vercel.app';
-
+const PROXY_BASE='https://stockwatch-proxyjobo.vercel.app';
 async function proxyFetch(url){
-  const endpoint = `${PROXY_BASE}/api/proxy?url=${encodeURIComponent(url)}`;
-  const r = await fetch(endpoint, {signal: AbortSignal.timeout(15000)});
+  const endpoint=`${PROXY_BASE}/api/proxy?url=${encodeURIComponent(url)}`;
+  const r=await fetch(endpoint,{signal:AbortSignal.timeout(15000)});
   if(!r.ok) throw new Error('Proxy error '+r.status);
   return r.json();
 }
 
 async function yahooFetch(ticker){
-  const p2 = Math.floor(Date.now()/1000);
-  const p1 = p2 - 440*24*3600;
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&period1=${p1}&period2=${p2}&includePrePost=false`;
-  const data = await proxyFetch(url);
-  if(data.chart?.error) throw new Error(data.chart.error.description || 'Yahoo error');
+  const p2=Math.floor(Date.now()/1000);
+  const p1=p2-440*24*3600;
+  const url=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&period1=${p1}&period2=${p2}&includePrePost=false`;
+  const data=await proxyFetch(url);
+  if(data.chart?.error) throw new Error(data.chart.error.description||'Yahoo error');
   if(!data.chart?.result?.[0]) throw new Error('No data returned');
   return data.chart.result[0];
 }
 
-function getFmpKey(){ return document.getElementById('fmpKey').value.trim(); }
+function getPolyKey(){return document.getElementById('polyKey').value.trim();}
 
-async function fmpMetrics(ticker){
-  const key = getFmpKey();
+async function polygonFinancials(ticker){
+  const key=getPolyKey();
   if(!key) return {};
-  const url = `https://financialmodelingprep.com/api/v3/ratios-ttm/${encodeURIComponent(ticker)}?apikey=${key}`;
+  const url=`https://api.polygon.io/vX/reference/financials?ticker=${encodeURIComponent(ticker)}&timeframe=ttm&limit=1&apiKey=${key}`;
   try{
-    const d = await proxyFetch(url);
-    return Array.isArray(d) && d.length ? d[0] : {};
-  }catch(e){ return {}; }
+    const d=await proxyFetch(url);
+    return d.results?.[0]?.financials||{};
+  }catch(e){return {};}
 }
 
-async function fmpProfile(ticker){
-  const key = getFmpKey();
+async function polygonDetails(ticker){
+  const key=getPolyKey();
   if(!key) return {};
-  const url = `https://financialmodelingprep.com/api/v3/profile/${encodeURIComponent(ticker)}?apikey=${key}`;
+  const url=`https://api.polygon.io/v3/reference/tickers/${encodeURIComponent(ticker)}?apiKey=${key}`;
   try{
-    const d = await proxyFetch(url);
-    return Array.isArray(d) && d.length ? d[0] : {};
-  }catch(e){ return {}; }
+    const d=await proxyFetch(url);
+    return d.results||{};
+  }catch(e){return {};}
 }
 
-let fmpTs=[];
-async function throttledFmp(fn){
+let polyTs=[];
+async function throttledPoly(fn){
   while(true){
-    const now=Date.now(); fmpTs=fmpTs.filter(t=>now-t<1000);
-    if(fmpTs.length<5) break;
-    await sleep(250);
+    const now=Date.now();polyTs=polyTs.filter(t=>now-t<60000);
+    if(polyTs.length<4) break;
+    await sleep(500);
   }
-  fmpTs.push(Date.now()); return fn();
+  polyTs.push(Date.now());return fn();
+}
+
+function calcFundamentals(fin,details,price){
+  const n=v=>(v!==null&&v!==undefined)?parseFloat(v):null;
+
+  const inc=fin.income_statement||{};
+  const bal=fin.balance_sheet||{};
+  const cf=fin.cash_flow_statement||{};
+
+  const netIncome   = n(inc.net_income_loss?.value);
+  const revenues    = n(inc.revenues?.value);
+  const eps         = n(inc.diluted_earnings_per_share?.value)??n(inc.basic_earnings_per_share?.value);
+  const totalAssets = n(bal.assets?.value);
+  const equity      = n(bal.equity?.value)??n(bal.equity_attributable_to_parent?.value);
+  const longTermDebt= n(bal.long_term_debt?.value);
+  const operatingCF = n(cf.net_cash_flow_from_operating_activities?.value);
+  const marketCap   = n(details.market_cap);
+  const sharesOut   = n(details.weighted_shares_outstanding)??n(details.share_class_shares_outstanding);
+
+  const pe = (price&&eps&&eps>0) ? price/eps : null;
+  const bookPerShare = (equity&&sharesOut&&sharesOut>0) ? equity/sharesOut : null;
+  const pb = (price&&bookPerShare&&bookPerShare>0) ? price/bookPerShare : null;
+  const roe = (netIncome&&equity&&equity>0) ? (netIncome/equity)*100 : null;
+  const roa = (netIncome&&totalAssets&&totalAssets>0) ? (netIncome/totalAssets)*100 : null;
+  const debtEbitda = (longTermDebt&&operatingCF&&operatingCF>0) ? longTermDebt/operatingCF : null;
+  const fcfYield = (operatingCF&&marketCap&&marketCap>0) ? (operatingCF/marketCap)*100 : null;
+
+  return{pe,pb,roe,roa,debtEbitda,fcfYield,eps,revenues,marketCap};
 }
 
 async function startLoad(){
@@ -468,34 +491,34 @@ async function startLoad(){
   document.getElementById('emptyState').style.display='none';
   document.getElementById('dataTable').style.display='table';
   const bar=document.getElementById('progressBar'),fill=document.getElementById('progressFill'),txt=document.getElementById('progressText');
-  bar.style.display='block'; fill.style.width='0%';
-  const total=tickers.length; let done=0;
+  bar.style.display='block';fill.style.width='0%';
+  const total=tickers.length;let done=0;
   setStatus('Cargando...','loading');
 
   const tasks=tickers.map(ticker=>async()=>{
     try{
-      const [chart, fmpR, fmpP] = await Promise.all([
+      const [chart,fin,det]=await Promise.all([
         yahooFetch(ticker),
-        getFmpKey() ? throttledFmp(()=>fmpMetrics(ticker))  : Promise.resolve({}),
-        getFmpKey() ? throttledFmp(()=>fmpProfile(ticker))  : Promise.resolve({}),
+        getPolyKey()?throttledPoly(()=>polygonFinancials(ticker)):Promise.resolve({}),
+        getPolyKey()?throttledPoly(()=>polygonDetails(ticker)):Promise.resolve({}),
       ]);
 
-      const meta   = chart.meta||{};
-      const quotes = chart.indicators?.quote?.[0]||{};
-      const ts     = chart.timestamp||[];
-      const closes = quotes.close||[];
-      const opens  = quotes.open||[];
-      const highs  = quotes.high||[];
-      const lows   = quotes.low||[];
-      const vols   = quotes.volume||[];
+      const meta=chart.meta||{};
+      const quotes=chart.indicators?.quote?.[0]||{};
+      const ts=chart.timestamp||[];
+      const closes=quotes.close||[];
+      const opens=quotes.open||[];
+      const highs=quotes.high||[];
+      const lows=quotes.low||[];
+      const vols=quotes.volume||[];
 
-      const price     = meta.regularMarketPrice ?? last(closes);
-      const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? null;
-      const chg       = (price&&prevClose) ? price-prevClose : null;
-      const chgPct    = (price&&prevClose) ? ((price/prevClose)-1)*100 : null;
+      const price=meta.regularMarketPrice??last(closes);
+      const prevClose=meta.chartPreviousClose??meta.previousClose??null;
+      const chg=(price&&prevClose)?price-prevClose:null;
+      const chgPct=(price&&prevClose)?((price/prevClose)-1)*100:null;
 
       const cutoff=Date.now()/1000-365*24*3600;
-      let high52=-Infinity, low52=Infinity;
+      let high52=-Infinity,low52=Infinity;
       for(let i=0;i<ts.length;i++){
         if(ts[i]<cutoff||highs[i]===null)continue;
         if(highs[i]>high52)high52=highs[i];
@@ -508,33 +531,23 @@ async function startLoad(){
 
       const wk=resampleWeekly(ts,opens,highs,lows,closes,vols);
       const wc=wk.c;
-      const ema20WA=calcEMA(wc,20), ema60WA=calcEMA(wc,60);
-      const sma20WA=calcSMA(wc,20), sma60WA=calcSMA(wc,60);
+      const ema20WA=calcEMA(wc,20),ema60WA=calcEMA(wc,60);
+      const sma20WA=calcSMA(wc,20),sma60WA=calcSMA(wc,60);
       const rsiWA=wc.length>15?calcRSI(wc):[];
       const macdWO=wc.length>30?calcMACD(wc):{macd:[],signal:[],hist:[]};
 
-      const n=v=>(v!==null&&v!==undefined&&v!=='')? parseFloat(v) : null;
-      const nz=v=>{ const x=n(v); return (x!==null&&x!==0)?x:null; };
-      const pe        = nz(fmpR.priceEarningsRatioTTM);
-      const pb        = nz(fmpR.priceToBookRatioTTM);
-      const peg       = nz(fmpR.priceEarningsToGrowthRatioTTM);
-      const eps       = nz(fmpP.eps);
-      const divYield  = fmpR.dividendYieldTTM!=null ? n(fmpR.dividendYieldTTM)*100 : null;
-      const roe       = fmpR.returnOnEquityTTM!=null ? n(fmpR.returnOnEquityTTM)*100 : null;
-      const roa       = fmpR.returnOnAssetsTTM!=null ? n(fmpR.returnOnAssetsTTM)*100 : null;
-      const debtEbitda= nz(fmpR.debtToEbitdaTTM) ?? nz(fmpR.netDebtToEBITDATTM);
-      const fcfYield  = fmpR.freeCashFlowYieldTTM!=null ? n(fmpR.freeCashFlowYieldTTM)*100 : null;
+      const fund=calcFundamentals(fin,det,price);
 
       stockData[ticker]={
-        ticker, price, chg, chgPct, high52, low52, distHigh52, distLow52,
-        pe, pb, peg, eps, divYield, roe, roa, debtEbitda, fcfYield,
-        rsiW:last(rsiWA), ema20W:last(ema20WA), ema60W:last(ema60WA),
-        sma20W:last(sma20WA), sma60W:last(sma60WA),
-        macdW:last(macdWO.macd), macdSigW:last(macdWO.signal),
-        wCloses:wc, wTimestamps:wk.t, wVolumes:wk.v,
-        rsiWSeries:rsiWA, ema20WSeries:ema20WA, ema60WSeries:ema60WA,
-        sma20WSeries:sma20WA, sma60WSeries:sma60WA,
-        macdWSeries:macdWO.macd, macdSigWSeries:macdWO.signal, macdHistWSeries:macdWO.hist,
+        ticker,price,chg,chgPct,high52,low52,distHigh52,distLow52,
+        ...fund,
+        rsiW:last(rsiWA),ema20W:last(ema20WA),ema60W:last(ema60WA),
+        sma20W:last(sma20WA),sma60W:last(sma60WA),
+        macdW:last(macdWO.macd),macdSigW:last(macdWO.signal),
+        wCloses:wc,wTimestamps:wk.t,wVolumes:wk.v,
+        rsiWSeries:rsiWA,ema20WSeries:ema20WA,ema60WSeries:ema60WA,
+        sma20WSeries:sma20WA,sma60WSeries:sma60WA,
+        macdWSeries:macdWO.macd,macdSigWSeries:macdWO.signal,macdHistWSeries:macdWO.hist,
         loaded:true,
       };
     }catch(e){
@@ -546,8 +559,7 @@ async function startLoad(){
     renderTable();
   });
 
-  await withLimit(tasks, 5);
-
+  await withLimit(tasks,3);
   loading=false;
   document.getElementById('loadBtn').disabled=false;
   const ok=Object.values(stockData).filter(d=>d.loaded).length;
@@ -596,7 +608,7 @@ function renderTable(){
     const tr=document.createElement('tr');
     if(d.ticker===selectedTicker)tr.classList.add('sel');
     if(!d.loaded){
-      tr.innerHTML=`<td><span class="ts">${d.ticker}</span></td>${Array(19).fill(SK).join('')}`;
+      tr.innerHTML=`<td><span class="ts">${d.ticker}</span></td>${Array(17).fill(SK).join('')}`;
       tr.onclick=()=>{};
     }else{
       const up=(d.chgPct??0)>=0;
@@ -621,10 +633,8 @@ function renderTable(){
         <td class="${d.distLow52!=null?(d.distLow52>20?'up':d.distLow52<5?'down':'neu'):'neu'}">${d.distLow52!=null?'+'+d.distLow52.toFixed(1)+'%':'—'}</td>
         <td class="td-sep">${fN(d.pe,1)}</td>
         <td>${fN(d.pb,1)}</td>
-        <td>${fN(d.peg,1)}</td>
         <td>${d.debtEbitda!=null?fN(d.debtEbitda,1)+'x':'—'}</td>
         <td>${d.fcfYield!=null?fN(d.fcfYield,1)+'%':'—'}</td>
-        <td>${d.divYield!=null?fN(d.divYield,2)+'%':'—'}</td>
         <td>${d.eps!=null?'$'+fN(d.eps,2):'—'}</td>
         <td>${d.roe!=null?fN(d.roe,1)+'%':'—'}</td>
         <td>${d.roa!=null?fN(d.roa,1)+'%':'—'}</td>
@@ -660,25 +670,25 @@ function openDetail(ticker){
   document.getElementById('dFund').innerHTML=[
     {l:'P/E',         v:fN(d.pe,1)},
     {l:'P/B',         v:fN(d.pb,1)},
-    {l:'PEG',         v:fN(d.peg,2)},
     {l:'Debt/EBITDA', v:d.debtEbitda!=null?fN(d.debtEbitda,1)+'x':'—'},
     {l:'FCF Yield',   v:d.fcfYield!=null?fN(d.fcfYield,1)+'%':'—'},
-    {l:'Div Yield',   v:d.divYield!=null?fN(d.divYield,2)+'%':'—'},
     {l:'EPS',         v:d.eps!=null?'$'+fN(d.eps,2):'—'},
-    {l:'ROE',         v:d.roe!=null?fN(d.roe,1)+'%':'—', cls:d.roe>15?'up':d.roe<0?'down':''},
-    {l:'ROA',         v:d.roa!=null?fN(d.roa,1)+'%':'—', cls:d.roa>5?'up':d.roa<0?'down':''},
+    {l:'ROE',         v:d.roe!=null?fN(d.roe,1)+'%':'—',cls:d.roe>15?'up':d.roe<0?'down':''},
+    {l:'ROA',         v:d.roa!=null?fN(d.roa,1)+'%':'—',cls:d.roa>5?'up':d.roa<0?'down':''},
+    {l:'Revenues',    v:d.revenues!=null?'$'+(d.revenues/1e9).toFixed(1)+'B':'—'},
+    {l:'Mkt Cap',     v:d.marketCap!=null?'$'+(d.marketCap/1e12).toFixed(2)+'T':'—'},
   ].map(f=>`<div class="fc"><div class="fl">${f.l}</div><div class="fv ${f.cls||''}">${f.v}</div></div>`).join('');
 
   const p=d.price;
   document.getElementById('dTech').innerHTML=[
-    {l:'RSI W(14)',  v:d.rsiW!=null?d.rsiW.toFixed(1):'—',     cls:d.rsiW<30?'up':d.rsiW>70?'down':''},
-    {l:'EMA 20W',   v:d.ema20W!=null?fP(d.ema20W):'—',         cls:p&&d.ema20W?(p>d.ema20W?'up':'down'):''},
-    {l:'EMA 60W',   v:d.ema60W!=null?fP(d.ema60W):'—',         cls:p&&d.ema60W?(p>d.ema60W?'up':'down'):''},
-    {l:'SMA 20W',   v:d.sma20W!=null?fP(d.sma20W):'—',         cls:p&&d.sma20W?(p>d.sma20W?'up':'down'):''},
-    {l:'SMA 60W',   v:d.sma60W!=null?fP(d.sma60W):'—',         cls:p&&d.sma60W?(p>d.sma60W?'up':'down'):''},
-    {l:'↓ Máx 52s', v:d.distHigh52!=null?d.distHigh52.toFixed(1)+'%':'—', sub:d.high52?'Máx: $'+d.high52.toFixed(2):'', cls:d.distHigh52>-5?'up':'down'},
-    {l:'↑ Mín 52s', v:d.distLow52!=null?'+'+d.distLow52.toFixed(1)+'%':'—', sub:d.low52?'Mín: $'+d.low52.toFixed(2):''},
-    {l:'MACD W',    v:d.macdW!=null?d.macdW.toFixed(3):'—',    sub:d.macdSigW!=null?'Sig: '+d.macdSigW.toFixed(3):'', cls:d.macdW&&d.macdSigW?(d.macdW>d.macdSigW?'up':'down'):''},
+    {l:'RSI W(14)', v:d.rsiW!=null?d.rsiW.toFixed(1):'—',    cls:d.rsiW<30?'up':d.rsiW>70?'down':''},
+    {l:'EMA 20W',  v:d.ema20W!=null?fP(d.ema20W):'—',        cls:p&&d.ema20W?(p>d.ema20W?'up':'down'):''},
+    {l:'EMA 60W',  v:d.ema60W!=null?fP(d.ema60W):'—',        cls:p&&d.ema60W?(p>d.ema60W?'up':'down'):''},
+    {l:'SMA 20W',  v:d.sma20W!=null?fP(d.sma20W):'—',        cls:p&&d.sma20W?(p>d.sma20W?'up':'down'):''},
+    {l:'SMA 60W',  v:d.sma60W!=null?fP(d.sma60W):'—',        cls:p&&d.sma60W?(p>d.sma60W?'up':'down'):''},
+    {l:'↓ Máx 52s',v:d.distHigh52!=null?d.distHigh52.toFixed(1)+'%':'—',sub:d.high52?'Máx: $'+d.high52.toFixed(2):'',cls:d.distHigh52>-5?'up':'down'},
+    {l:'↑ Mín 52s',v:d.distLow52!=null?'+'+d.distLow52.toFixed(1)+'%':'—',sub:d.low52?'Mín: $'+d.low52.toFixed(2):''},
+    {l:'MACD W',   v:d.macdW!=null?d.macdW.toFixed(3):'—',   sub:d.macdSigW!=null?'Sig: '+d.macdSigW.toFixed(3):'',cls:d.macdW&&d.macdSigW?(d.macdW>d.macdSigW?'up':'down'):''},
   ].map(f=>`<div class="fc"><div class="fl">${f.l}</div><div class="fv ${f.cls||''}">${f.v}</div>${f.sub?'<div class="fs">'+f.sub+'</div>':''}</div>`).join('');
 
   buildCharts(d);
@@ -693,11 +703,11 @@ function buildCharts(d){
 
   dD('price');
   dCharts['price']=new Chart(document.getElementById('dPriceChart'),{type:'line',data:{labels,datasets:[
-    {label:'Precio', data:d.wCloses,       borderColor:'#4f8ef7',borderWidth:2,  pointRadius:0,fill:false},
-    {label:'EMA 20W',data:d.ema20WSeries,  borderColor:'#00c98d',borderWidth:1,  pointRadius:0,fill:false},
-    {label:'EMA 60W',data:d.ema60WSeries,  borderColor:'#34d399',borderWidth:1,  pointRadius:0,borderDash:[5,3],fill:false},
-    {label:'SMA 20W',data:d.sma20WSeries,  borderColor:'#f0a500',borderWidth:1,  pointRadius:0,fill:false},
-    {label:'SMA 60W',data:d.sma60WSeries,  borderColor:'#fbbf24',borderWidth:1,  pointRadius:0,borderDash:[5,3],fill:false},
+    {label:'Precio', data:d.wCloses,      borderColor:'#4f8ef7',borderWidth:2,pointRadius:0,fill:false},
+    {label:'EMA 20W',data:d.ema20WSeries, borderColor:'#00c98d',borderWidth:1,pointRadius:0,fill:false},
+    {label:'EMA 60W',data:d.ema60WSeries, borderColor:'#34d399',borderWidth:1,pointRadius:0,borderDash:[5,3],fill:false},
+    {label:'SMA 20W',data:d.sma20WSeries, borderColor:'#f0a500',borderWidth:1,pointRadius:0,fill:false},
+    {label:'SMA 60W',data:d.sma60WSeries, borderColor:'#fbbf24',borderWidth:1,pointRadius:0,borderDash:[5,3],fill:false},
   ]},options:{...CD,plugins:{legend:{display:true,labels:{font:{size:9},boxWidth:10,color:'#8892a4',padding:8}}}}});
 
   dD('rsi');
@@ -709,9 +719,9 @@ function buildCharts(d){
 
   dD('macd');
   dCharts['macd']=new Chart(document.getElementById('dMacdChart'),{type:'bar',data:{labels,datasets:[
-    {type:'bar', data:d.macdHistWSeries,  backgroundColor:d.macdHistWSeries.map(v=>v===null?'transparent':v>=0?'rgba(0,201,141,.45)':'rgba(255,79,106,.45)'),borderRadius:1},
-    {type:'line',data:d.macdWSeries,      borderColor:'#4f8ef7',borderWidth:1.5,pointRadius:0,fill:false},
-    {type:'line',data:d.macdSigWSeries,   borderColor:'#ff4f6a',borderWidth:1.2,borderDash:[4,3],pointRadius:0,fill:false},
+    {type:'bar', data:d.macdHistWSeries, backgroundColor:d.macdHistWSeries.map(v=>v===null?'transparent':v>=0?'rgba(0,201,141,.45)':'rgba(255,79,106,.45)'),borderRadius:1},
+    {type:'line',data:d.macdWSeries,     borderColor:'#4f8ef7',borderWidth:1.5,pointRadius:0,fill:false},
+    {type:'line',data:d.macdSigWSeries,  borderColor:'#ff4f6a',borderWidth:1.2,borderDash:[4,3],pointRadius:0,fill:false},
   ]},options:CD});
 
   dD('vol');
