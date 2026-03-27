@@ -507,6 +507,28 @@ async function yahooFetch(ticker){
   if(!data.chart?.result?.[0])throw new Error('No data');
   return data.chart.result[0];
 }
+async function yahooFundamentals(ticker){
+  const url=`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=defaultKeyStatistics,financialData,summaryDetail`;
+  try{
+    const data=await proxyFetch(url);
+    const r=data.quoteSummary?.result?.[0];
+    if(!r)return{};
+    const ks=r.defaultKeyStatistics||{};
+    const fd=r.financialData||{};
+    const sd=r.summaryDetail||{};
+    const n=v=>v?.raw??null;
+    return{
+      pe:       n(sd.trailingPE)??n(ks.forwardPE),
+      pb:       n(ks.priceToBook),
+      eps:      n(ks.trailingEps),
+      roe:      n(fd.returnOnEquity)!=null?n(fd.returnOnEquity)*100:null,
+      roa:      n(fd.returnOnAssets)!=null?n(fd.returnOnAssets)*100:null,
+      fcfYield: n(fd.freeCashflow)!=null&&n(sd.marketCap)!=null&&n(sd.marketCap)>0?(n(fd.freeCashflow)/n(sd.marketCap))*100:null,
+      divYield: n(sd.dividendYield)!=null?n(sd.dividendYield)*100:null,
+      marketCap:n(sd.marketCap),
+    };
+  }catch(e){return{};}
+}
 function getPolyKey(){return document.getElementById('polyKey').value.trim();}
 async function polygonFinancials(ticker){
   const key=getPolyKey();if(!key)return{};
@@ -547,21 +569,23 @@ async function startLoad(){
   const bar=document.getElementById('progressBar'),fill=document.getElementById('progressFill'),txt=document.getElementById('progressText');
   bar.style.display='block';fill.style.width='0%';
   const total=tickers.length;let done=0;
-  setStatus('cargando...','loading');
+  setStatus('cargando datos...','loading');
+
+  // ── PASS 1: Technical + Fundamentals (fast) ──
   const tasks=tickers.map(ticker=>async()=>{
     try{
-      const [chart,fin,det,fvHtml]=await Promise.all([
+      const [chart,fin,det,fvHtml,yhFund]=await Promise.all([
         yahooFetch(ticker),
         getPolyKey()?throttledPoly(()=>polygonFinancials(ticker)):Promise.resolve({}),
         getPolyKey()?throttledPoly(()=>polygonDetails(ticker)):Promise.resolve({}),
         finvizFetch(ticker).catch(()=>null),
+        yahooFundamentals(ticker).catch(()=>({})),
       ]);
       const meta=chart.meta||{},quotes=chart.indicators?.quote?.[0]||{};
       const ts=chart.timestamp||[],closes=quotes.close||[],opens=quotes.open||[];
       const highs=quotes.high||[],lows=quotes.low||[],vols=quotes.volume||[];
       const price=meta.regularMarketPrice??last(closes);
 
-      // CHG% — chartPreviousClose is most reliable
       let prevClose=meta.chartPreviousClose??meta.previousClose??null;
       if(!prevClose){
         const vp=ts.map((t,i)=>({t,v:closes[i]})).filter(x=>x.v!==null&&!isNaN(x.v));
@@ -586,18 +610,18 @@ async function startLoad(){
       const ema10WDev=(price&&ema10W)?((price/ema10W)-1)*100:null;
       const ema20WDev=(price&&ema20W)?((price/ema20W)-1)*100:null;
 
-      // Fundamentals: Finviz first, Polygon fallback
       const fv=parseFV(fvHtml);
+      const yh=yhFund||{};
       const poly=calcPolyFund(fin,det,price);
-      const pick=(a,b)=>(a!==null&&a!==undefined)?a:b;
-      const pe=pick(fv.pe,poly.pe),pb=pick(fv.pb,poly.pb);
-      const eps=pick(fv.eps,poly.eps),roe=pick(fv.roe,poly.roe),roa=pick(fv.roa,poly.roa);
-      const fcfYield=pick(fv.fcfYield,poly.fcfYield);
-      const divYield=fv.divYield??null,marketCap=pick(fv.marketCap,poly.marketCap);
-
-      // Econometric — 6 years of weekly data, 8 rallies + 8 drops
-      const {rallies,drops,all}=buildSegments(wc,wk.t);
-      const situation=currentSituation(wc,wk.t,all||[]);
+      const pick=(...vals)=>{for(const v of vals)if(v!==null&&v!==undefined)return v;return null;};
+      const pe=pick(fv.pe,yh.pe,poly.pe);
+      const pb=pick(fv.pb,yh.pb,poly.pb);
+      const eps=pick(fv.eps,yh.eps,poly.eps);
+      const roe=pick(fv.roe,yh.roe,poly.roe);
+      const roa=pick(fv.roa,yh.roa,poly.roa);
+      const fcfYield=pick(fv.fcfYield,yh.fcfYield,poly.fcfYield);
+      const divYield=pick(fv.divYield,yh.divYield);
+      const marketCap=pick(fv.marketCap,yh.marketCap,poly.marketCap);
 
       stockData[ticker]={
         ticker,price,chg,chgPct,high52,low52,distHigh52,distLow52,
@@ -605,8 +629,9 @@ async function startLoad(){
         pe,pb,roe,roa,fcfYield,divYield,eps,marketCap,
         rsiW:last(rsiWA),macdW:last(macdWO.macd),macdSigW:last(macdWO.signal),
         wCloses:wc,wTimestamps:wk.t,
-        rallies,drops,situation,
-        totalPivots:rallies.length+drops.length,
+        rallies:null,drops:null,situation:null, // eco pending
+        ecoReady:false,
+        totalPivots:0,
         loaded:true,
       };
     }catch(e){stockData[ticker]={ticker,loaded:false,error:e.message};}
@@ -616,12 +641,34 @@ async function startLoad(){
     renderTable();
   });
   await withLimit(tasks,3);
+
   loading=false;
   document.getElementById('loadBtn').disabled=false;
   const ok=Object.values(stockData).filter(d=>d.loaded).length;
-  setStatus('ok · '+ok+' cargadas'+(total-ok?' · '+(total-ok)+' err':''),'ok');
+  setStatus('ok · '+ok+' · calculando análisis...','loading');
   bar.style.display='none';
   renderTable();
+
+  // ── PASS 2: Econometric analysis in background (one by one, low priority) ──
+  for(const ticker of tickers){
+    const d=stockData[ticker];
+    if(!d||!d.loaded)continue;
+    await sleep(0); // yield to browser between each ticker
+    try{
+      const {rallies,drops,all}=buildSegments(d.wCloses,d.wTimestamps);
+      const situation=currentSituation(d.wCloses,d.wTimestamps,all||[]);
+      d.rallies=rallies;
+      d.drops=drops;
+      d.situation=situation;
+      d.totalPivots=rallies.length+drops.length;
+      d.ecoReady=true;
+      // if this ticker is currently open in detail, refresh it
+      if(selectedTicker===ticker){
+        document.getElementById('dEco').innerHTML=buildEcoHtml(d);
+      }
+    }catch(e){d.ecoReady=true;}
+  }
+  setStatus('listo · '+ok+' cargadas','ok');
 }
 
 // ── FORMAT ──
@@ -815,7 +862,9 @@ function openDetail(ticker){
   document.getElementById('dTVBtn').onclick=()=>window.open(`https://www.tradingview.com/chart/?symbol=${ticker}&interval=W`,'_blank');
   document.getElementById('d52w').innerHTML=d.high52&&d.low52?`52w: <span>$${d.low52.toFixed(2)}</span> — <span>$${d.high52.toFixed(2)}</span> &nbsp;|&nbsp; ${d.totalPivots||0} min/max locales`:'';
   document.getElementById('dFund').innerHTML=buildFundHtml(d);
-  document.getElementById('dEco').innerHTML=buildEcoHtml(d);
+  document.getElementById('dEco').innerHTML=d.ecoReady
+    ? buildEcoHtml(d)
+    : '<div class="loading-msg" style="color:var(--amber);">⏳ Calculando análisis econométrico...</div>';
 }
 function openFullscreen(){
   const d=stockData[selectedTicker];if(!d||!d.loaded)return;
@@ -830,7 +879,9 @@ function openFullscreen(){
     <span style="color:var(--text3);">|</span>
     <span style="color:var(--text3);">${d.totalPivots||0} min/max locales (6 años)</span>`;
   document.getElementById('fsFund').innerHTML=buildFundHtml(d);
-  document.getElementById('fsEco').innerHTML=buildEcoHtml(d);
+  document.getElementById('fsEco').innerHTML=d.ecoReady
+    ? buildEcoHtml(d)
+    : '<div class="loading-msg" style="color:var(--amber);">⏳ Calculando análisis econométrico...</div>';
   document.getElementById('fsOverlay').classList.add('open');
 }
 function closeFullscreen(){document.getElementById('fsOverlay').classList.remove('open');}
