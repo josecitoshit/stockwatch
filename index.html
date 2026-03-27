@@ -508,26 +508,35 @@ async function yahooFetch(ticker){
   return data.chart.result[0];
 }
 async function yahooFundamentals(ticker){
-  const url=`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=defaultKeyStatistics,financialData,summaryDetail`;
-  try{
-    const data=await proxyFetch(url);
-    const r=data.quoteSummary?.result?.[0];
-    if(!r)return{};
-    const ks=r.defaultKeyStatistics||{};
-    const fd=r.financialData||{};
-    const sd=r.summaryDetail||{};
-    const n=v=>v?.raw??null;
-    return{
-      pe:       n(sd.trailingPE)??n(ks.forwardPE),
-      pb:       n(ks.priceToBook),
-      eps:      n(ks.trailingEps),
-      roe:      n(fd.returnOnEquity)!=null?n(fd.returnOnEquity)*100:null,
-      roa:      n(fd.returnOnAssets)!=null?n(fd.returnOnAssets)*100:null,
-      fcfYield: n(fd.freeCashflow)!=null&&n(sd.marketCap)!=null&&n(sd.marketCap)>0?(n(fd.freeCashflow)/n(sd.marketCap))*100:null,
-      divYield: n(sd.dividendYield)!=null?n(sd.dividendYield)*100:null,
-      marketCap:n(sd.marketCap),
-    };
-  }catch(e){return{};}
+  // Try v11 first (better ADR support), fallback to v10
+  const urls=[
+    `https://query2.finance.yahoo.com/v11/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=defaultKeyStatistics%2CfinancialData%2CsummaryDetail`,
+    `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=defaultKeyStatistics,financialData,summaryDetail`,
+  ];
+  for(const url of urls){
+    try{
+      const data=await proxyFetch(url);
+      const r=data.quoteSummary?.result?.[0];
+      if(!r)continue;
+      const ks=r.defaultKeyStatistics||{};
+      const fd=r.financialData||{};
+      const sd=r.summaryDetail||{};
+      const n=v=>v?.raw??null;
+      const result={
+        pe:       n(sd.trailingPE)??n(ks.forwardPE),
+        pb:       n(ks.priceToBook),
+        eps:      n(ks.trailingEps),
+        roe:      n(fd.returnOnEquity)!=null?n(fd.returnOnEquity)*100:null,
+        roa:      n(fd.returnOnAssets)!=null?n(fd.returnOnAssets)*100:null,
+        fcfYield: (n(fd.freeCashflow)!=null&&n(sd.marketCap)!=null&&n(sd.marketCap)>0)?(n(fd.freeCashflow)/n(sd.marketCap))*100:null,
+        divYield: n(sd.dividendYield)!=null?n(sd.dividendYield)*100:null,
+        marketCap:n(sd.marketCap),
+      };
+      // return only if we got at least one useful value
+      if(Object.values(result).some(v=>v!==null))return result;
+    }catch(e){continue;}
+  }
+  return{};
 }
 function getPolyKey(){return document.getElementById('polyKey').value.trim();}
 async function polygonFinancials(ticker){
