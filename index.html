@@ -478,22 +478,23 @@ function fvNum(html,label){
   if(v==='-'||v===''||v==='N/A')return null;
   return parseFloat(v);
 }
-function parseMarketCap(html){
-  const re=/<td[^>]*>\s*Market Cap\s*<\/td>\s*<td[^>]*>([^<]+)<\/td>/i;
-  const m=html.match(re);if(!m)return null;
-  const v=m[1].trim();if(v==='-'||v==='')return null;
-  const n=parseFloat(v);
-  if(v.endsWith('T'))return n*1e12;
-  if(v.endsWith('B'))return n*1e9;
-  if(v.endsWith('M'))return n*1e6;
-  return n;
+function fvDivYield(html){
+  // "Dividend TTM" shows as "1.00 (3.43%)" — extract the percentage in parens
+  const re=/<td[^>]*>\s*Dividend TTM\s*<\/td>\s*<td[^>]*>([^<]+)<\/td>/i;
+  const m=html.match(re);
+  if(m){
+    const pct=m[1].match(/\(([\d.]+)%\)/);
+    if(pct)return parseFloat(pct[1]);
+  }
+  // fallback: try "Dividend %" or plain "Dividend"
+  return fvNum(html,'Dividend %')||fvNum(html,'Div %')||fvNum(html,'Dividend');
 }
 function parseFV(html){
   if(!html||typeof html!=='string')return{};
   const pe=fvNum(html,'P/E'),pb=fvNum(html,'P/B');
-  const eps=fvNum(html,'EPS \\(ttm\\)')||fvNum(html,'EPS');
+  const eps=fvNum(html,'EPS \\(ttm\\)')||fvNum(html,'EPS \\(TTM\\)')||fvNum(html,'EPS');
   const roe=fvNum(html,'ROE'),roa=fvNum(html,'ROA');
-  const divYield=fvNum(html,'Dividend %')||fvNum(html,'Div %')||fvNum(html,'Dividend');
+  const divYield=fvDivYield(html);
   const marketCap=parseMarketCap(html);
   const pfcf=fvNum(html,'P\\/FCF');
   const fcfYield=(pfcf&&pfcf>0)?(1/pfcf)*100:null;
@@ -506,37 +507,6 @@ async function yahooFetch(ticker){
   if(data.chart?.error)throw new Error(data.chart.error.description||'Yahoo error');
   if(!data.chart?.result?.[0])throw new Error('No data');
   return data.chart.result[0];
-}
-async function yahooFundamentals(ticker){
-  // Try v11 first (better ADR support), fallback to v10
-  const urls=[
-    `https://query2.finance.yahoo.com/v11/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=defaultKeyStatistics%2CfinancialData%2CsummaryDetail`,
-    `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=defaultKeyStatistics,financialData,summaryDetail`,
-  ];
-  for(const url of urls){
-    try{
-      const data=await proxyFetch(url);
-      const r=data.quoteSummary?.result?.[0];
-      if(!r)continue;
-      const ks=r.defaultKeyStatistics||{};
-      const fd=r.financialData||{};
-      const sd=r.summaryDetail||{};
-      const n=v=>v?.raw??null;
-      const result={
-        pe:       n(sd.trailingPE)??n(ks.forwardPE),
-        pb:       n(ks.priceToBook),
-        eps:      n(ks.trailingEps),
-        roe:      n(fd.returnOnEquity)!=null?n(fd.returnOnEquity)*100:null,
-        roa:      n(fd.returnOnAssets)!=null?n(fd.returnOnAssets)*100:null,
-        fcfYield: (n(fd.freeCashflow)!=null&&n(sd.marketCap)!=null&&n(sd.marketCap)>0)?(n(fd.freeCashflow)/n(sd.marketCap))*100:null,
-        divYield: n(sd.dividendYield)!=null?n(sd.dividendYield)*100:null,
-        marketCap:n(sd.marketCap),
-      };
-      // return only if we got at least one useful value
-      if(Object.values(result).some(v=>v!==null))return result;
-    }catch(e){continue;}
-  }
-  return{};
 }
 function getPolyKey(){return document.getElementById('polyKey').value.trim();}
 async function polygonFinancials(ticker){
@@ -583,12 +553,11 @@ async function startLoad(){
   // ── PASS 1: Technical + Fundamentals (fast) ──
   const tasks=tickers.map(ticker=>async()=>{
     try{
-      const [chart,fin,det,fvHtml,yhFund]=await Promise.all([
+      const [chart,fin,det,fvHtml]=await Promise.all([
         yahooFetch(ticker),
         getPolyKey()?throttledPoly(()=>polygonFinancials(ticker)):Promise.resolve({}),
         getPolyKey()?throttledPoly(()=>polygonDetails(ticker)):Promise.resolve({}),
         finvizFetch(ticker).catch(()=>null),
-        yahooFundamentals(ticker).catch(()=>({})),
       ]);
       const meta=chart.meta||{},quotes=chart.indicators?.quote?.[0]||{};
       const ts=chart.timestamp||[],closes=quotes.close||[],opens=quotes.open||[];
@@ -620,17 +589,16 @@ async function startLoad(){
       const ema20WDev=(price&&ema20W)?((price/ema20W)-1)*100:null;
 
       const fv=parseFV(fvHtml);
-      const yh=yhFund||{};
       const poly=calcPolyFund(fin,det,price);
       const pick=(...vals)=>{for(const v of vals)if(v!==null&&v!==undefined)return v;return null;};
-      const pe=pick(fv.pe,yh.pe,poly.pe);
-      const pb=pick(fv.pb,yh.pb,poly.pb);
-      const eps=pick(fv.eps,yh.eps,poly.eps);
-      const roe=pick(fv.roe,yh.roe,poly.roe);
-      const roa=pick(fv.roa,yh.roa,poly.roa);
-      const fcfYield=pick(fv.fcfYield,yh.fcfYield,poly.fcfYield);
-      const divYield=pick(fv.divYield,yh.divYield);
-      const marketCap=pick(fv.marketCap,yh.marketCap,poly.marketCap);
+      const pe=pick(fv.pe,poly.pe);
+      const pb=pick(fv.pb,poly.pb);
+      const eps=pick(fv.eps,poly.eps);
+      const roe=pick(fv.roe,poly.roe);
+      const roa=pick(fv.roa,poly.roa);
+      const fcfYield=pick(fv.fcfYield,poly.fcfYield);
+      const divYield=fv.divYield??null;
+      const marketCap=pick(fv.marketCap,poly.marketCap);
 
       stockData[ticker]={
         ticker,price,chg,chgPct,high52,low52,distHigh52,distLow52,
