@@ -73,6 +73,9 @@ tbody tr.sel td:first-child{background:#1c1c1c;}
 .down{color:var(--red);font-weight:500;}
 .neu{color:var(--text2);}
 .skel{display:inline-block;background:var(--bg4);border-radius:2px;animation:blink 1.4s ease-in-out infinite;}
+tr.sector-hdr{background:var(--bg3);cursor:default;}
+tr.sector-hdr:hover{background:var(--bg3);}
+tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.14em;text-transform:uppercase;border-top:1px solid var(--border2);border-bottom:1px solid var(--border2);position:sticky;left:0;}
 
 /* DETAIL */
 #detail{padding:0;}
@@ -303,7 +306,33 @@ const DEFAULT_TICKERS=`PYPL
 MELI
 NU
 JD
-UNH`.split('\n').map(t=>t.trim()).filter(Boolean).slice(0,100);
+UNH
+UBER
+COIN
+SQ
+SHOP
+MSFT
+META
+TSLA
+PFE
+VIST
+ADBE
+GLOB
+AMD
+INTC
+HOOD
+RACE
+JPM
+BAC
+V
+MA
+NVDA
+GOOG
+AAPL
+TSM
+PBR
+YPF
+XOM`.split('\n').map(t=>t.trim()).filter(Boolean).slice(0,100);
 
 let tickers=[...DEFAULT_TICKERS],stockData={},loading=false,selectedTicker=null;
 let sortKey='chgPct',sortDir='desc';
@@ -663,6 +692,26 @@ const clr=v=>v===null?'':(parseFloat(v)>=0?'color:var(--green)':'color:var(--red
 const signCls=v=>v===null?'neu':parseFloat(v)>0?'up':parseFloat(v)<0?'down':'neu';
 
 // ── RENDER TABLE ──
+// Sector map
+const SECTORS={
+  'Microchips':    ['NVDA','AMD','INTC','TSM'],
+  'Tecnología':    ['MSFT','AAPL','GOOG','ADBE','META','GLOB'],
+  'E-commerce':    ['AMZN','MELI','SHOP','JD','BABA'],
+  'Fintech/Pagos': ['PYPL','SQ','COIN','V','MA','NU','HOOD'],
+  'Movilidad':     ['UBER','TSLA','RACE'],
+  'Salud':         ['UNH','PFE'],
+  'Bancos':        ['JPM','BAC'],
+  'Petroleras':    ['VIST','PBR','YPF','XOM'],
+  'Otros':         [],
+};
+function getSector(ticker){
+  for(const[s,ts] of Object.entries(SECTORS)){
+    if(s==='Otros')continue;
+    if(ts.includes(ticker))return s;
+  }
+  return'Otros';
+}
+
 function renderTable(){
   const filter=document.getElementById('filterInput').value.toLowerCase();
   sortKey=document.getElementById('sortCol').value;
@@ -673,42 +722,68 @@ function renderTable(){
   if(rsiF==='oversold')rows=rows.filter(d=>d.rsiW!=null&&d.rsiW<30);
   if(rsiF==='overbought')rows=rows.filter(d=>d.rsiW!=null&&d.rsiW>70);
   if(rsiF==='neutral')rows=rows.filter(d=>d.rsiW!=null&&d.rsiW>=30&&d.rsiW<=70);
-  rows.sort((a,b)=>{
+
+  // Group by sector
+  const grouped={};
+  for(const d of rows){
+    const s=getSector(d.ticker);
+    if(!grouped[s])grouped[s]=[];
+    grouped[s].push(d);
+  }
+  // Sort within each group
+  const sortFn=(a,b)=>{
     if(sortKey==='ticker')return sortDir==='asc'?a.ticker.localeCompare(b.ticker):b.ticker.localeCompare(a.ticker);
     const va=a[sortKey]??(sortDir==='desc'?-Infinity:Infinity);
     const vb=b[sortKey]??(sortDir==='desc'?-Infinity:Infinity);
     return sortDir==='desc'?vb-va:va-vb;
-  });
-  document.getElementById('countBadge').textContent=rows.length+' tickers';
+  };
+  for(const s of Object.keys(grouped))grouped[s].sort(sortFn);
+
+  // Sector order
+  const sectorOrder=Object.keys(SECTORS);
+  const totalRows=rows.length;
+  document.getElementById('countBadge').textContent=totalRows+' tickers';
   const tbody=document.getElementById('tbody');tbody.innerHTML='';
+  const NCOLS=15; // number of columns after ticker
   const SK='<td><span class="skel" style="width:38px;height:10px;">&nbsp;</span></td>';
-  for(const d of rows){
-    const tr=document.createElement('tr');
-    if(d.ticker===selectedTicker)tr.classList.add('sel');
-    if(!d.loaded){
-      tr.innerHTML=`<td><span class="ts">${d.ticker}</span></td>${Array(14).fill(SK).join('')}`;
-      tr.onclick=()=>{};
-    }else{
-      const rsiCls=d.rsiW!=null?(d.rsiW>60?'up':d.rsiW<40?'down':'neu'):'neu';
-      tr.innerHTML=`
-        <td><span class="ts">${d.ticker}</span></td>
-        <td style="color:#fff;font-weight:500;">${fP(d.price)}</td>
-        <td class="${signCls(d.chgPct)}">${d.chgPct!=null?(d.chgPct>=0?'+':'')+d.chgPct.toFixed(2)+'%':'—'}</td>
-        <td class="td-sep ${rsiCls}" style="font-weight:700;">${d.rsiW!=null?d.rsiW.toFixed(1):'—'}</td>
-        <td class="${signCls(d.ema10WDev)}">${fPct(d.ema10WDev)}</td>
-        <td class="${signCls(d.ema20WDev)}">${fPct(d.ema20WDev)}</td>
-        <td class="${signCls(d.distHigh52)}">${d.distHigh52!=null?d.distHigh52.toFixed(1)+'%':'—'}</td>
-        <td class="${signCls(d.distLow52)}">${d.distLow52!=null?'+'+d.distLow52.toFixed(1)+'%':'—'}</td>
-        <td class="td-sep">${fN(d.pe,1)}</td>
-        <td>${fN(d.pb,1)}</td>
-        <td>${d.fcfYield!=null?fN(d.fcfYield,1)+'%':'—'}</td>
-        <td>${d.divYield!=null?fN(d.divYield,2)+'%':'—'}</td>
-        <td>${d.roe!=null?fN(d.roe,1)+'%':'—'}</td>
-        <td>${d.roa!=null?fN(d.roa,1)+'%':'—'}</td>
-        <td>${d.eps!=null?'$'+fN(d.eps,2):'—'}</td>`;
-      tr.onclick=()=>openDetail(d.ticker);
+
+  for(const sector of sectorOrder){
+    const group=grouped[sector];
+    if(!group||!group.length)continue;
+    // Sector header row
+    const hdr=document.createElement('tr');
+    hdr.className='sector-hdr';
+    hdr.innerHTML=`<td colspan="${NCOLS+1}">// ${sector} &nbsp;<span style="color:var(--text3);font-weight:400;">${group.length} ticker${group.length>1?'s':''}</span></td>`;
+    tbody.appendChild(hdr);
+    // Ticker rows
+    for(const d of group){
+      const tr=document.createElement('tr');
+      if(d.ticker===selectedTicker)tr.classList.add('sel');
+      if(!d.loaded){
+        tr.innerHTML=`<td><span class="ts">${d.ticker}</span></td>${Array(NCOLS).fill(SK).join('')}`;
+        tr.onclick=()=>{};
+      }else{
+        const rsiCls=d.rsiW!=null?(d.rsiW>60?'up':d.rsiW<40?'down':'neu'):'neu';
+        tr.innerHTML=`
+          <td><span class="ts">${d.ticker}</span></td>
+          <td style="color:#fff;font-weight:500;">${fP(d.price)}</td>
+          <td class="${signCls(d.chgPct)}">${d.chgPct!=null?(d.chgPct>=0?'+':'')+d.chgPct.toFixed(2)+'%':'—'}</td>
+          <td class="td-sep ${rsiCls}" style="font-weight:700;">${d.rsiW!=null?d.rsiW.toFixed(1):'—'}</td>
+          <td class="${signCls(d.ema10WDev)}">${fPct(d.ema10WDev)}</td>
+          <td class="${signCls(d.ema20WDev)}">${fPct(d.ema20WDev)}</td>
+          <td class="${signCls(d.distHigh52)}">${d.distHigh52!=null?d.distHigh52.toFixed(1)+'%':'—'}</td>
+          <td class="${signCls(d.distLow52)}">${d.distLow52!=null?'+'+d.distLow52.toFixed(1)+'%':'—'}</td>
+          <td class="td-sep">${fN(d.pe,1)}</td>
+          <td>${fN(d.pb,1)}</td>
+          <td>${d.fcfYield!=null?fN(d.fcfYield,1)+'%':'—'}</td>
+          <td>${d.divYield!=null?fN(d.divYield,2)+'%':'—'}</td>
+          <td>${d.roe!=null?fN(d.roe,1)+'%':'—'}</td>
+          <td>${d.roa!=null?fN(d.roa,1)+'%':'—'}</td>
+          <td>${d.eps!=null?'$'+fN(d.eps,2):'—'}</td>`;
+        tr.onclick=()=>openDetail(d.ticker);
+      }
+      tbody.appendChild(tr);
     }
-    tbody.appendChild(tr);
   }
 }
 function sortBy(col){
