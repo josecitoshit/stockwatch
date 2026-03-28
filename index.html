@@ -194,8 +194,8 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
     <option value="rsiW">RSI</option>
     <option value="distHigh52">Dist. Máx 52s</option>
     <option value="distLow52">Dist. Mín 52s</option>
-    <option value="ema10WDev">EMA 10W %</option>
-    <option value="ema20WDev">EMA 20W %</option>
+    <option value="vsSP500">vs S&P500 20W</option>
+    <option value="sma20WDev">vs SMA20W %</option>
     <option value="pe">P/E</option>
     <option value="pb">P/B</option>
     <option value="fcfYield">FCF Yield</option>
@@ -233,8 +233,8 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
           <th onclick="sortBy('price')" id="th-price">PRECIO</th>
           <th onclick="sortBy('chgPct')" id="th-chgPct">CHG %</th>
           <th onclick="sortBy('rsiW')" id="th-rsiW" class="th-sep">RSI</th>
-          <th onclick="sortBy('ema10WDev')" id="th-ema10WDev">vs EMA10W</th>
-          <th onclick="sortBy('ema20WDev')" id="th-ema20WDev">vs EMA20W</th>
+          <th onclick="sortBy('vsSP500')" id="th-vsSP500">vs SP500 20W</th>
+          <th onclick="sortBy('sma20WDev')" id="th-sma20WDev">vs SMA20W</th>
           <th onclick="sortBy('distHigh52')" id="th-distHigh52">↓ MÁX52</th>
           <th onclick="sortBy('distLow52')" id="th-distLow52">↑ MÍN52</th>
           <th onclick="sortBy('pe')" id="th-pe" class="th-sep">P/E</th>
@@ -359,6 +359,13 @@ function calcEMA(arr,n){
     prev=arr[i]*k+prev*(1-k);out.push(prev);
   }
   return out;
+}
+function calcSMA(arr,n){
+  return arr.map((_,i)=>{
+    if(i<n-1)return null;
+    const slice=arr.slice(i-n+1,i+1).filter(v=>v!==null);
+    return slice.length===n?slice.reduce((a,b)=>a+b,0)/n:null;
+  });
 }
 function calcRSI(c,n=14){
   const r=Array(c.length).fill(null);
@@ -546,7 +553,23 @@ async function polygonDetails(ticker){
   const key=getPolyKey();if(!key)return{};
   try{const d=await proxyFetch(`https://api.polygon.io/v3/reference/tickers/${encodeURIComponent(ticker)}?apiKey=${key}`);return d.results||{};}catch(e){return{};}
 }
-let polyTs=[];
+let spyReturn20W=null; // cached S&P500 return over last 20 weeks
+async function fetchSPY(){
+  if(spyReturn20W!==null)return spyReturn20W;
+  try{
+    const p2=Math.floor(Date.now()/1000),p1=p2-2190*24*3600;
+    const url=`https://query1.finance.yahoo.com/v8/finance/chart/SPY?interval=1wk&period1=${p1}&period2=${p2}&includePrePost=false`;
+    const data=await proxyFetch(url);
+    const closes=data.chart?.result?.[0]?.indicators?.quote?.[0]?.close||[];
+    const valid=closes.filter(v=>v!==null&&!isNaN(v));
+    if(valid.length>=21){
+      const last=valid[valid.length-1];
+      const ref=valid[valid.length-21]; // 20 weeks ago
+      spyReturn20W=((last/ref)-1)*100;
+    }else spyReturn20W=0;
+  }catch(e){spyReturn20W=0;}
+  return spyReturn20W;
+}
 async function throttledPoly(fn){
   while(true){const now=Date.now();polyTs=polyTs.filter(t=>now-t<60000);if(polyTs.length<4)break;await sleep(500);}
   polyTs.push(Date.now());return fn();
@@ -578,6 +601,7 @@ async function startLoad(){
   bar.style.display='block';fill.style.width='0%';
   const total=tickers.length;let done=0;
   setStatus('cargando datos...','loading');
+  await fetchSPY();
 
   // ── PASS 1: Technical + Fundamentals (fast) ──
   const tasks=tickers.map(ticker=>async()=>{
@@ -612,12 +636,16 @@ async function startLoad(){
 
       const wk=resampleWeekly(ts,opens,highs,lows,closes,vols);
       const wc=wk.c;
-      const ema10WA=calcEMA(wc,10),ema20WA=calcEMA(wc,20);
+      const ema20WA=calcEMA(wc,20);
+      const sma20WA=calcSMA(wc,20);
       const rsiWA=wc.length>15?calcRSI(wc):[];
       const macdWO=wc.length>30?calcMACD(wc):{macd:[],signal:[],hist:[]};
-      const ema10W=last(ema10WA),ema20W=last(ema20WA);
-      const ema10WDev=(price&&ema10W)?((price/ema10W)-1)*100:null;
-      const ema20WDev=(price&&ema20W)?((price/ema20W)-1)*100:null;
+      const sma20W=last(sma20WA);
+      const sma20WDev=(price&&sma20W)?((price/sma20W)-1)*100:null;
+      // vs S&P500 last 20 weeks
+      const spy=await fetchSPY();
+      const ticker20WReturn=wc.length>=21?((wc[wc.length-1]/wc[wc.length-21])-1)*100:null;
+      const vsSP500=ticker20WReturn!==null?ticker20WReturn-spy:null;
 
       const fv=parseFV(fvHtml);
       const poly=calcPolyFund(fin,det,price);
@@ -638,7 +666,7 @@ async function startLoad(){
 
       stockData[ticker]={
         ticker,price,chg,chgPct,high52,low52,distHigh52,distLow52,
-        ema10W,ema20W,ema10WDev,ema20WDev,
+        sma20W,sma20WDev,vsSP500,
         pe,pb,roe,roa,fcfYield,divYield,eps,marketCap,
         rsiW:last(rsiWA),macdW:last(macdWO.macd),macdSigW:last(macdWO.signal),
         wCloses:wc,wTimestamps:wk.t,
@@ -769,8 +797,8 @@ function renderTable(){
           <td style="color:#fff;font-weight:500;">${fP(d.price)}</td>
           <td class="${signCls(d.chgPct)}">${d.chgPct!=null?(d.chgPct>=0?'+':'')+d.chgPct.toFixed(2)+'%':'—'}</td>
           <td class="td-sep ${rsiCls}" style="font-weight:700;">${d.rsiW!=null?d.rsiW.toFixed(1):'—'}</td>
-          <td class="${signCls(d.ema10WDev)}">${fPct(d.ema10WDev)}</td>
-          <td class="${signCls(d.ema20WDev)}">${fPct(d.ema20WDev)}</td>
+          <td class="${signCls(d.vsSP500)}">${fPct(d.vsSP500)}</td>
+          <td class="${signCls(d.sma20WDev)}">${fPct(d.sma20WDev)}</td>
           <td class="${signCls(d.distHigh52)}">${d.distHigh52!=null?d.distHigh52.toFixed(1)+'%':'—'}</td>
           <td class="${signCls(d.distLow52)}">${d.distLow52!=null?'+'+d.distLow52.toFixed(1)+'%':'—'}</td>
           <td class="td-sep">${fN(d.pe,1)}</td>
