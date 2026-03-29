@@ -702,6 +702,7 @@ async function renderFsCharts(ticker,wCloses,wTimestamps){
   });
 
   // Weekly price for 5Y (for the price-only overlay)
+  const CUT5Y=Date.now()/1000-5*365*24*3600;
   const wIdx5=wTimestamps.map((t,i)=>i).filter(i=>wTimestamps[i]>=CUT5Y);
   const wTs5=wIdx5.map(i=>wTimestamps[i]);
   const wCl5=wIdx5.map(i=>wCloses[i]);
