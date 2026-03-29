@@ -150,6 +150,12 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 #fsEco .eco-stats{font-size:13px;}
 #fsEco .eco-current{font-size:13px;}
 #fsEco .eco-section{margin-bottom:24px;}
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
+.chart-box{background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:14px;}
+.chart-box-title{font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;}
+.chart-box canvas{display:block;}
+.charts-loading{text-align:center;padding:30px;color:var(--amber);font-size:12px;}
+.chart-box-full{grid-column:1/-1;}
 
 /* TICKER EDITOR */
 #tickerEditor{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:100;align-items:center;justify-content:center;}
@@ -163,6 +169,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 #emptyState a{color:var(--green);}
 #emptyState strong{color:var(--green);}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -285,6 +292,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
   <div id="fsBody">
     <div id="fsMeta"></div>
     <div id="fsFund"></div>
+    <div id="fsCharts"></div>
     <div id="fsEco"></div>
   </div>
 </div>
@@ -577,7 +585,138 @@ async function polygonDetails(ticker){
   const key=getPolyKey();if(!key)return{};
   try{const d=await proxyFetch(`https://api.polygon.io/v3/reference/tickers/${encodeURIComponent(ticker)}?apiKey=${key}`);return d.results||{};}catch(e){return{};}
 }
-let spyReturn20W=null; // cached S&P500 return over last 20 weeks
+let fsCharts={};
+function destroyFsCharts(){Object.values(fsCharts).forEach(c=>{try{c.destroy();}catch(e){}});fsCharts={};}
+
+async function fetchPolyFinancials(ticker){
+  const key=getPolyKey();if(!key)return[];
+  try{
+    const url=`https://api.polygon.io/vX/reference/financials?ticker=${encodeURIComponent(ticker)}&timeframe=quarterly&limit=40&sort=period_of_report_date&order=asc&apiKey=${key}`;
+    const d=await proxyFetch(url);
+    return d.results||[];
+  }catch(e){return[];}
+}
+
+function extractFinancialSeries(results){
+  const labels=[],revenue=[],netIncome=[],eps=[],fcf=[],debt=[];
+  for(const r of results){
+    const fin=r.financials||{};
+    const inc=fin.income_statement||{};
+    const bal=fin.balance_sheet||{};
+    const cf=fin.cash_flow_statement||{};
+    const label=r.fiscal_period?`${r.fiscal_year} ${r.fiscal_period}`:r.end_date?.slice(0,7)||'';
+    labels.push(label);
+    const n=v=>v?.value??null;
+    revenue.push(n(inc.revenues));
+    netIncome.push(n(inc.net_income_loss));
+    eps.push(n(inc.diluted_earnings_per_share)??n(inc.basic_earnings_per_share));
+    fcf.push(n(cf.net_cash_flow_from_operating_activities));
+    const longDebt=n(bal.long_term_debt)??0;
+    debt.push(longDebt);
+  }
+  return{labels,revenue,netIncome,eps,fcf,debt};
+}
+
+function mkChart(id,type,labels,datasets,opts={}){
+  const ctx=document.getElementById(id)?.getContext('2d');
+  if(!ctx)return;
+  if(fsCharts[id]){fsCharts[id].destroy();}
+  const gridColor='rgba(255,255,255,0.06)';
+  const tickColor='#686868';
+  fsCharts[id]=new Chart(ctx,{
+    type,
+    data:{labels,datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:datasets.length>1,labels:{font:{size:10},color:'#b0b0b0',boxWidth:10,padding:8}}},
+      scales:{
+        x:{ticks:{font:{size:9},color:tickColor,maxTicksLimit:12,maxRotation:45},grid:{color:gridColor}},
+        y:{ticks:{font:{size:9},color:tickColor,callback:v=>{
+          if(Math.abs(v)>=1e9)return(v/1e9).toFixed(1)+'B';
+          if(Math.abs(v)>=1e6)return(v/1e6).toFixed(0)+'M';
+          return v?.toFixed(2)??v;
+        }},grid:{color:gridColor}},
+      },
+      ...opts,
+    }
+  });
+}
+
+async function renderFsCharts(ticker,wCloses,wTimestamps){
+  const container=document.getElementById('fsCharts');
+  container.innerHTML=`<div class="charts-loading">⏳ Cargando gráficos históricos...</div>`;
+  destroyFsCharts();
+
+  // Fetch Polygon financials
+  const results=await fetchPolyFinancials(ticker);
+  const {labels,revenue,netIncome,eps,fcf,debt}=extractFinancialSeries(results);
+
+  // Price chart from Yahoo weekly data
+  const priceLabels=wTimestamps.map(t=>{const d=new Date(t*1000);return(d.getMonth()+1)+'/'+(d.getFullYear()%100);});
+
+  // P/E history: price / trailing EPS (quarterly rolling)
+  const peHistory=[];
+  if(eps.length){
+    for(let i=0;i<wCloses.length;i++){
+      const p=wCloses[i];
+      if(p===null){peHistory.push(null);continue;}
+      // find nearest quarterly EPS
+      const nearestEps=eps.filter(v=>v!==null).slice(-4).reduce((a,b)=>a+b,0); // TTM
+      peHistory.push(nearestEps>0?+(p/nearestEps).toFixed(1):null);
+    }
+  }
+
+  const noData=results.length===0;
+  container.innerHTML=`
+    <div style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border2);">
+      // GRÁFICOS HISTÓRICOS ${noData?'<span style="color:var(--red);font-weight:400;">(fundamentals no disponibles para este ticker)</span>':''}
+    </div>
+    <div class="charts-grid">
+      <div class="chart-box chart-box-full"><div class="chart-box-title">Precio semanal (6 años)</div><div style="height:180px;"><canvas id="fsChPrice"></canvas></div></div>
+      ${noData?'':`
+      <div class="chart-box"><div class="chart-box-title">Revenue trimestral</div><div style="height:160px;"><canvas id="fsChRevenue"></canvas></div></div>
+      <div class="chart-box"><div class="chart-box-title">Net Income trimestral</div><div style="height:160px;"><canvas id="fsChNetIncome"></canvas></div></div>
+      <div class="chart-box"><div class="chart-box-title">EPS trimestral (diluido)</div><div style="height:160px;"><canvas id="fsChEps"></canvas></div></div>
+      <div class="chart-box"><div class="chart-box-title">Free Cash Flow trimestral</div><div style="height:160px;"><canvas id="fsChFcf"></canvas></div></div>
+      <div class="chart-box"><div class="chart-box-title">Deuda LP trimestral</div><div style="height:160px;"><canvas id="fsChDebt"></canvas></div></div>
+      <div class="chart-box"><div class="chart-box-title">P/E histórico (semanal, TTM)</div><div style="height:160px;"><canvas id="fsChPE"></canvas></div></div>
+      `}
+    </div>`;
+
+  // Price chart
+  mkChart('fsChPrice','line',priceLabels,[{
+    label:'Precio',data:wCloses,borderColor:'#33bbff',borderWidth:2,pointRadius:0,fill:false
+  }]);
+
+  if(!noData){
+    // Revenue
+    mkChart('fsChRevenue','bar',labels,[{
+      data:revenue,backgroundColor:revenue.map(v=>v>=0?'rgba(0,255,136,0.5)':'rgba(255,51,85,0.5)'),borderRadius:2
+    }]);
+    // Net Income
+    mkChart('fsChNetIncome','bar',labels,[{
+      data:netIncome,backgroundColor:netIncome.map(v=>v===null?'transparent':v>=0?'rgba(0,255,136,0.5)':'rgba(255,51,85,0.5)'),borderRadius:2
+    }]);
+    // EPS
+    mkChart('fsChEps','bar',labels,[{
+      data:eps,backgroundColor:eps.map(v=>v===null?'transparent':v>=0?'rgba(0,255,136,0.5)':'rgba(255,51,85,0.5)'),borderRadius:2
+    }],{scales:{x:{ticks:{font:{size:9},color:'#686868',maxTicksLimit:12,maxRotation:45},grid:{color:'rgba(255,255,255,0.06)'}},y:{ticks:{font:{size:9},color:'#686868',callback:v=>v?.toFixed(2)},grid:{color:'rgba(255,255,255,0.06)'}}}});
+    // FCF
+    mkChart('fsChFcf','bar',labels,[{
+      data:fcf,backgroundColor:fcf.map(v=>v===null?'transparent':v>=0?'rgba(51,187,255,0.5)':'rgba(255,51,85,0.5)'),borderRadius:2
+    }]);
+    // Debt
+    mkChart('fsChDebt','bar',labels,[{
+      data:debt,backgroundColor:'rgba(255,187,0,0.5)',borderRadius:2
+    }]);
+    // P/E
+    if(peHistory.some(v=>v!==null)){
+      mkChart('fsChPE','line',priceLabels,[{
+        label:'P/E',data:peHistory,borderColor:'#ffbb00',borderWidth:1.5,pointRadius:0,fill:false
+      }],{scales:{x:{ticks:{font:{size:9},color:'#686868',maxTicksLimit:12,maxRotation:45},grid:{color:'rgba(255,255,255,0.06)'}},y:{ticks:{font:{size:9},color:'#686868',callback:v=>v?.toFixed(1)},grid:{color:'rgba(255,255,255,0.06)'}}}});
+    }
+  }
+} // cached S&P500 return over last 20 weeks
 async function fetchSPY(){
   if(spyReturn20W!==null)return spyReturn20W;
   try{
@@ -990,8 +1129,13 @@ function openFullscreen(){
     ? buildEcoHtml(d)
     : '<div class="loading-msg" style="color:var(--amber);">⏳ Calculando análisis econométrico...</div>';
   document.getElementById('fsOverlay').classList.add('open');
+  renderFsCharts(d.ticker,d.wCloses,d.wTimestamps);
 }
-function closeFullscreen(){document.getElementById('fsOverlay').classList.remove('open');}
+function closeFullscreen(){
+  destroyFsCharts();
+  document.getElementById('fsCharts').innerHTML='';
+  document.getElementById('fsOverlay').classList.remove('open');
+}
 function closeDetail(){
   selectedTicker=null;
   document.getElementById('left').classList.remove('split');
