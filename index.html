@@ -598,7 +598,7 @@ async function fetchPolyFinancials(ticker){
 }
 
 function extractFinancialSeries(results){
-  const labels=[],revenue=[],netIncome=[],eps=[],sharesOut=[],
+  const labels=[],dates=[],revenue=[],netIncome=[],eps=[],sharesOut=[],
         assets=[],liabilities=[],equity=[],longDebt=[],
         grossProfit=[],operatingIncome=[],operatingCF=[];
   for(const r of results){
@@ -607,7 +607,9 @@ function extractFinancialSeries(results){
     const bal=fin.balance_sheet||{};
     const cf=fin.cash_flow_statement||{};
     const label=r.fiscal_period?`${r.fiscal_year} ${r.fiscal_period}`:r.end_date?.slice(0,7)||'';
+    const dateStr=r.end_date||r.filing_date||null;
     labels.push(label);
+    dates.push(dateStr?new Date(dateStr).getTime()/1000:null);
     const n=v=>v?.value??null;
     revenue.push(n(inc.revenues));
     netIncome.push(n(inc.net_income_loss));
@@ -621,23 +623,17 @@ function extractFinancialSeries(results){
     operatingIncome.push(n(inc.operating_income_loss));
     operatingCF.push(n(cf.net_cash_flow_from_operating_activities));
   }
-  return{labels,revenue,netIncome,eps,sharesOut,assets,liabilities,equity,longDebt,grossProfit,operatingIncome,operatingCF};
+  return{labels,dates,revenue,netIncome,eps,sharesOut,assets,liabilities,equity,longDebt,grossProfit,operatingIncome,operatingCF};
 }
 
-// Align quarterly data to weekly price timeline by matching nearest date
-function alignToWeekly(qLabels,qData,wTimestamps){
-  if(!qLabels.length)return Array(wTimestamps.length).fill(null);
-  // parse quarter labels to timestamps
-  const qDates=qLabels.map(l=>{
-    const m=l.match(/(\d{4})\s+(Q\d)/);
-    if(m){const q={'Q1':3,'Q2':6,'Q3':9,'Q4':12}[m[2]]||3;return new Date(parseInt(m[1]),q-1,1).getTime()/1000;}
-    return null;
-  });
+function alignToWeekly(qDates,qData,wTimestamps){
+  if(!qDates.length)return Array(wTimestamps.length).fill(null);
   return wTimestamps.map(wt=>{
-    // find the most recent quarter that's <= wt
     let best=null,bestTs=-Infinity;
     for(let i=0;i<qDates.length;i++){
-      if(qDates[i]!==null&&qDates[i]<=wt&&qDates[i]>bestTs){bestTs=qDates[i];best=qData[i];}
+      if(qDates[i]!==null&&qDates[i]<=wt&&qDates[i]>bestTs){
+        bestTs=qDates[i];best=qData[i];
+      }
     }
     return best;
   });
@@ -684,35 +680,55 @@ async function renderFsCharts(ticker,wCloses,wTimestamps){
   const s=extractFinancialSeries(results);
   const noData=results.length===0;
 
-  // Weekly price labels (5 years = ~260 weeks)
+  // Filter to last 5 years
   const CUT5Y=Date.now()/1000-5*365*24*3600;
-  const wIdx=wTimestamps.map((t,i)=>i).filter(i=>wTimestamps[i]>=CUT5Y);
-  const wTs=wIdx.map(i=>wTimestamps[i]);
-  const wCl=wIdx.map(i=>wCloses[i]);
-  const wLbls=wTs.map(t=>{const d=new Date(t*1000);return(d.getMonth()+1)+'/'+(d.getFullYear()%100);});
+  const qIdx=s.dates.map((d,i)=>i).filter(i=>s.dates[i]!==null&&s.dates[i]>=CUT5Y);
+  const qDates=qIdx.map(i=>s.dates[i]);
+  const qLbls=qIdx.map(i=>s.labels[i]);
 
-  // Align quarterly series to weekly timeline
-  const aRev=alignToWeekly(s.labels,s.revenue,wTs);
-  const aNI=alignToWeekly(s.labels,s.netIncome,wTs);
-  const aEps=alignToWeekly(s.labels,s.eps,wTs);
-  const aShares=alignToWeekly(s.labels,s.sharesOut,wTs);
-  const aAssets=alignToWeekly(s.labels,s.assets,wTs);
-  const aLiab=alignToWeekly(s.labels,s.liabilities,wTs);
-  const aEq=alignToWeekly(s.labels,s.equity,wTs);
-  const aDebt=alignToWeekly(s.labels,s.longDebt,wTs);
-  const aGP=alignToWeekly(s.labels,s.grossProfit,wTs);
-  const aOI=alignToWeekly(s.labels,s.operatingIncome,wTs);
-  const aOCF=alignToWeekly(s.labels,s.operatingCF,wTs);
+  // Helper: get value at quarter index
+  const qv=(arr,i)=>arr[qIdx[i]]??null;
 
-  // Calculated series
-  const aPE=wCl.map((p,i)=>{const ttmEps=aEps[i];return(p&&ttmEps&&ttmEps>0)?+(p/ttmEps).toFixed(1):null;});
-  const aPB=wCl.map((p,i)=>{const eq=aEq[i],sh=aShares[i];if(!p||!eq||!sh||sh===0)return null;const bps=eq/sh;return bps>0?+(p/bps).toFixed(2):null;});
-  const aROE=wCl.map((_,i)=>pct(aNI[i],aEq[i]));
-  const aROA=wCl.map((_,i)=>pct(aNI[i],aAssets[i]));
-  const aDebtEq=wCl.map((_,i)=>ratio(aDebt[i],aEq[i]));
-  const aGM=wCl.map((_,i)=>pct(aGP[i],aRev[i]));
-  const aOM=wCl.map((_,i)=>pct(aOI[i],aRev[i]));
-  const aNM=wCl.map((_,i)=>pct(aNI[i],aRev[i]));
+  // Interpolate weekly price to quarterly dates
+  const priceAtQ=qDates.map(qt=>{
+    // find closest weekly price
+    let best=null,bestDiff=Infinity;
+    for(let j=0;j<wTimestamps.length;j++){
+      const diff=Math.abs(wTimestamps[j]-qt);
+      if(diff<bestDiff){bestDiff=diff;best=wCloses[j];}
+    }
+    return best;
+  });
+
+  // Weekly price for 5Y (for the price-only overlay)
+  const wIdx5=wTimestamps.map((t,i)=>i).filter(i=>wTimestamps[i]>=CUT5Y);
+  const wTs5=wIdx5.map(i=>wTimestamps[i]);
+  const wCl5=wIdx5.map(i=>wCloses[i]);
+  const wLbls5=wTs5.map(t=>{const d=new Date(t*1000);return(d.getMonth()+1)+'/'+(d.getFullYear()%100);});
+
+  // Build quarterly series
+  const n=i=>qIdx[i];
+  const rev=qLbls.map((_,i)=>qv(s.revenue,i));
+  const ni=qLbls.map((_,i)=>qv(s.netIncome,i));
+  const eps=qLbls.map((_,i)=>qv(s.eps,i));
+  const shares=qLbls.map((_,i)=>qv(s.sharesOut,i));
+  const assets=qLbls.map((_,i)=>qv(s.assets,i));
+  const liab=qLbls.map((_,i)=>qv(s.liabilities,i));
+  const eq=qLbls.map((_,i)=>qv(s.equity,i));
+  const debt=qLbls.map((_,i)=>qv(s.longDebt,i));
+  const gp=qLbls.map((_,i)=>qv(s.grossProfit,i));
+  const oi=qLbls.map((_,i)=>qv(s.operatingIncome,i));
+  const ocf=qLbls.map((_,i)=>qv(s.operatingCF,i));
+
+  // Calculated ratios at quarterly dates
+  const pe=priceAtQ.map((p,i)=>{const e=eps[i];return(p&&e&&e>0)?+(p/e).toFixed(1):null;});
+  const pb=priceAtQ.map((p,i)=>{const e=eq[i],sh=shares[i];if(!p||!e||!sh||sh===0)return null;const bps=e/sh;return bps>0?+(p/bps).toFixed(2):null;});
+  const roe=ni.map((v,i)=>pct(v,eq[i]));
+  const roa=ni.map((v,i)=>pct(v,assets[i]));
+  const debtEq=debt.map((v,i)=>ratio(v,eq[i]));
+  const gm=gp.map((v,i)=>pct(v,rev[i]));
+  const om=oi.map((v,i)=>pct(v,rev[i]));
+  const nm=ni.map((v,i)=>pct(v,rev[i]));
 
   container.innerHTML=`
     <div style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.12em;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border2);">
@@ -721,53 +737,49 @@ async function renderFsCharts(ticker,wCloses,wTimestamps){
     <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:24px;">
       <div class="chart-box"><div class="chart-box-title">Precio · Revenue · P/E · P/B</div><div style="height:220px;"><canvas id="fsCh1"></canvas></div></div>
       ${noData?'':`
-      <div class="chart-box"><div class="chart-box-title">Precio · ROE · ROA</div><div style="height:220px;"><canvas id="fsCh2"></canvas></div></div>
+      <div class="chart-box"><div class="chart-box-title">Precio · Net Income · ROE · ROA</div><div style="height:220px;"><canvas id="fsCh2"></canvas></div></div>
       <div class="chart-box"><div class="chart-box-title">Precio · EPS · Shares Outstanding</div><div style="height:220px;"><canvas id="fsCh3"></canvas></div></div>
       <div class="chart-box"><div class="chart-box-title">Precio · Assets · Liabilities · Equity · Debt/Equity</div><div style="height:220px;"><canvas id="fsCh4"></canvas></div></div>
       <div class="chart-box"><div class="chart-box-title">Precio · Gross Margin · Operating Margin · Net Margin · Net Cash Flow</div><div style="height:220px;"><canvas id="fsCh5"></canvas></div></div>
       `}
     </div>`;
 
-  // Chart 1: Precio + Revenue (bars left) + P/E + P/B (lines right)
-  mkDual('fsCh1',wLbls,wCl,[
-    {label:'Revenue',data:aRev,type:'bar',backgroundColor:'rgba(0,255,136,0.25)',borderRadius:1},
+  // mkDual now uses quarterly labels + interpolated price
+  mkDual('fsCh1',qLbls,priceAtQ,[
+    {label:'Revenue',data:rev,type:'bar',backgroundColor:'rgba(0,255,136,0.25)',borderRadius:2},
   ],[
-    {label:'P/E',data:aPE,type:'line',borderColor:'#ffbb00',borderWidth:1.5,pointRadius:0,fill:false},
-    {label:'P/B',data:aPB,type:'line',borderColor:'#ff3355',borderWidth:1.5,pointRadius:0,fill:false},
+    {label:'P/E',data:pe,type:'line',borderColor:'#ffbb00',borderWidth:2,pointRadius:3,fill:false},
+    {label:'P/B',data:pb,type:'line',borderColor:'#ff3355',borderWidth:2,pointRadius:3,fill:false},
   ],v=>v?.toFixed(1));
 
   if(!noData){
-    // Chart 2: Precio + ROE + ROA (lines right %)
-    mkDual('fsCh2',wLbls,wCl,[
-      {label:'Net Income',data:aNI,type:'bar',backgroundColor:'rgba(0,255,136,0.25)',borderRadius:1},
+    mkDual('fsCh2',qLbls,priceAtQ,[
+      {label:'Net Income',data:ni,type:'bar',backgroundColor:ni.map(v=>v===null?'transparent':v>=0?'rgba(0,255,136,0.35)':'rgba(255,51,85,0.35)'),borderRadius:2},
     ],[
-      {label:'ROE %',data:aROE,type:'line',borderColor:'#ffbb00',borderWidth:1.5,pointRadius:0,fill:false},
-      {label:'ROA %',data:aROA,type:'line',borderColor:'#ff3355',borderWidth:1.5,pointRadius:0,fill:false},
+      {label:'ROE %',data:roe,type:'line',borderColor:'#ffbb00',borderWidth:2,pointRadius:3,fill:false},
+      {label:'ROA %',data:roa,type:'line',borderColor:'#ff3355',borderWidth:2,pointRadius:3,fill:false},
     ],v=>v?.toFixed(1)+'%');
 
-    // Chart 3: Precio + EPS (bars left) + Shares Outstanding (line right)
-    mkDual('fsCh3',wLbls,wCl,[
-      {label:'EPS',data:aEps,type:'bar',backgroundColor:aEps.map(v=>v===null?'transparent':v>=0?'rgba(0,255,136,0.4)':'rgba(255,51,85,0.4)'),borderRadius:1},
+    mkDual('fsCh3',qLbls,priceAtQ,[
+      {label:'EPS',data:eps,type:'bar',backgroundColor:eps.map(v=>v===null?'transparent':v>=0?'rgba(0,255,136,0.4)':'rgba(255,51,85,0.4)'),borderRadius:2},
     ],[
-      {label:'Shares Out (M)',data:aShares.map(v=>v?+(v/1e6).toFixed(1):null),type:'line',borderColor:'#ffbb00',borderWidth:1.5,pointRadius:0,fill:false},
+      {label:'Shares Out (M)',data:shares.map(v=>v?+(v/1e6).toFixed(1):null),type:'line',borderColor:'#ffbb00',borderWidth:2,pointRadius:3,fill:false},
     ],v=>v?.toFixed(0)+'M');
 
-    // Chart 4: Precio + Assets + Liabilities + Equity (bars left) + Debt/Equity (line right)
-    mkDual('fsCh4',wLbls,wCl,[
-      {label:'Assets',data:aAssets,type:'bar',backgroundColor:'rgba(51,187,255,0.3)',borderRadius:1},
-      {label:'Liabilities',data:aLiab,type:'bar',backgroundColor:'rgba(255,51,85,0.3)',borderRadius:1},
-      {label:'Equity',data:aEq,type:'bar',backgroundColor:'rgba(0,255,136,0.3)',borderRadius:1},
+    mkDual('fsCh4',qLbls,priceAtQ,[
+      {label:'Assets',data:assets,type:'bar',backgroundColor:'rgba(51,187,255,0.3)',borderRadius:2},
+      {label:'Liabilities',data:liab,type:'bar',backgroundColor:'rgba(255,51,85,0.3)',borderRadius:2},
+      {label:'Equity',data:eq,type:'bar',backgroundColor:'rgba(0,255,136,0.3)',borderRadius:2},
     ],[
-      {label:'Debt/Equity',data:aDebtEq,type:'line',borderColor:'#ffbb00',borderWidth:1.5,pointRadius:0,fill:false},
+      {label:'Debt/Equity',data:debtEq,type:'line',borderColor:'#ffbb00',borderWidth:2,pointRadius:3,fill:false},
     ],v=>v?.toFixed(2)+'x');
 
-    // Chart 5: Precio + Gross/Op/Net Margin (lines right %) + Net Cash Flow (bars left)
-    mkDual('fsCh5',wLbls,wCl,[
-      {label:'Net Cash Flow',data:aOCF,type:'bar',backgroundColor:aOCF.map(v=>v===null?'transparent':v>=0?'rgba(51,187,255,0.3)':'rgba(255,51,85,0.3)'),borderRadius:1},
+    mkDual('fsCh5',qLbls,priceAtQ,[
+      {label:'Net Cash Flow',data:ocf,type:'bar',backgroundColor:ocf.map(v=>v===null?'transparent':v>=0?'rgba(51,187,255,0.3)':'rgba(255,51,85,0.3)'),borderRadius:2},
     ],[
-      {label:'Gross Margin %',data:aGM,type:'line',borderColor:'#00ff88',borderWidth:1.5,pointRadius:0,fill:false},
-      {label:'Op. Margin %',data:aOM,type:'line',borderColor:'#ffbb00',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[4,3]},
-      {label:'Net Margin %',data:aNM,type:'line',borderColor:'#ff3355',borderWidth:1.5,pointRadius:0,fill:false,borderDash:[4,3]},
+      {label:'Gross Margin %',data:gm,type:'line',borderColor:'#00ff88',borderWidth:2,pointRadius:3,fill:false},
+      {label:'Op. Margin %',data:om,type:'line',borderColor:'#ffbb00',borderWidth:2,pointRadius:3,borderDash:[4,3],fill:false},
+      {label:'Net Margin %',data:nm,type:'line',borderColor:'#ff3355',borderWidth:2,pointRadius:3,borderDash:[4,3],fill:false},
     ],v=>v?.toFixed(1)+'%');
   }
 } // cached S&P500 return over last 20 weeks
