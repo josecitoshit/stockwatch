@@ -591,9 +591,11 @@ function destroyFsCharts(){Object.values(fsCharts).forEach(c=>{try{c.destroy();}
 async function fetchPolyFinancials(ticker){
   const key=getPolyKey();if(!key)return[];
   try{
-    const url=`https://api.polygon.io/vX/reference/financials?ticker=${encodeURIComponent(ticker)}&timeframe=quarterly&limit=20&sort=period_of_report_date&order=asc&apiKey=${key}`;
+    // order=desc gets most recent first, then we reverse for chronological order
+    const url=`https://api.polygon.io/vX/reference/financials?ticker=${encodeURIComponent(ticker)}&timeframe=quarterly&limit=20&sort=period_of_report_date&order=desc&apiKey=${key}`;
     const d=await proxyFetch(url);
-    return d.results||[];
+    const results=d.results||[];
+    return results.reverse(); // chronological order (oldest first)
   }catch(e){return[];}
 }
 
@@ -609,7 +611,7 @@ function extractFinancialSeries(results){
     const label=r.fiscal_period?`${r.fiscal_year} ${r.fiscal_period}`:r.end_date?.slice(0,7)||'';
     const dateStr=r.end_date||r.filing_date||null;
     labels.push(label);
-    dates.push(dateStr?new Date(dateStr).getTime()/1000:null);
+    dates.push(dateStr?Date.parse(dateStr.slice(0,10)+'T12:00:00Z')/1000:null);
     const n=v=>v?.value??null;
     revenue.push(n(inc.revenues));
     netIncome.push(n(inc.net_income_loss));
@@ -680,9 +682,8 @@ async function renderFsCharts(ticker,wCloses,wTimestamps){
   const s=extractFinancialSeries(results);
   const noData=results.length===0;
 
-  // Filter to last 5 years
-  const CUT5Y=Date.now()/1000-5*365*24*3600;
-  const qIdx=s.dates.map((d,i)=>i).filter(i=>s.dates[i]!==null&&s.dates[i]>=CUT5Y);
+  // Use all available quarters (already limited to 20 = ~5 years)
+  const qIdx=s.dates.map((d,i)=>i).filter(i=>s.dates[i]!==null);
   const qDates=qIdx.map(i=>s.dates[i]);
   const qLbls=qIdx.map(i=>s.labels[i]);
 
