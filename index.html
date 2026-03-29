@@ -717,6 +717,7 @@ async function renderFsCharts(ticker,wCloses,wTimestamps){
     }
   }
 } // cached S&P500 return over last 20 weeks
+let spyReturn20W=null; // cached S&P500 return over last 20 weeks
 async function fetchSPY(){
   if(spyReturn20W!==null)return spyReturn20W;
   try{
