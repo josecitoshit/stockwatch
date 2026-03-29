@@ -526,13 +526,18 @@ function fvNum(html,label){
   return parseFloat(v);
 }
 function fvDivYield(html){
-  const re=/<td[^>]*>\s*Dividend TTM\s*<\/td>\s*<td[^>]*>\s*(?:<b>)?([^<]+?)(?:<\/b>)?\s*<\/td>/i;
+  const re=/<td[^>]*>\s*(?:<a[^>]*>)?\s*Dividend TTM\s*(?:<\/a>)?\s*<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/i;
   const m=html.match(re);
   if(m){
-    const pct=m[1].match(/\(([\d.]+)%\)/);
+    // strip all tags and extract percentage
+    const raw=m[1].replace(/<[^>]+>/g,'').trim();
+    const pct=raw.match(/\(([\d.]+)%\)/);
     if(pct)return parseFloat(pct[1]);
+    // maybe it's just a plain number
+    const n=parseFloat(raw.replace(/[,%]/g,''));
+    if(!isNaN(n)&&n>0)return n;
   }
-  return fvNum(html,'Dividend %')||fvNum(html,'Div %')||fvNum(html,'Dividend');
+  return fvNum(html,'Dividend %')||fvNum(html,'Div %');
 }
 function parseMarketCap(html){
   const re=/<td[^>]*>\s*Market Cap\s*<\/td>\s*<td[^>]*>\s*(?:<b>)?([^<]+?)(?:<\/b>)?\s*<\/td>/i;
