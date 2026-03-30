@@ -859,22 +859,49 @@ async function renderFsCharts(ticker,wCloses,wTimestamps){
   const fcfQ=qLbls.map((_,i)=>qv(s.fcf,i));
 
   // Calculated ratios at quarterly dates
-  // Fix shares: interpolate nulls AND replace outliers (values >50% different from median)
-  const sharesInterp=[...shares];
-  const validShares=sharesInterp.filter(v=>v!==null);
-  const medShares=validShares.length?validShares.sort((a,b)=>a-b)[Math.floor(validShares.length/2)]:null;
-  for(let i=0;i<sharesInterp.length;i++){
-    const v=sharesInterp[i];
-    // mark as null if outlier (>60% deviation from median)
-    if(v!==null&&medShares&&Math.abs(v-medShares)/medShares>0.6)sharesInterp[i]=null;
+  // Fix shares: derive from mktCap/price as most reliable source
+  // then interpolate any remaining nulls and remove outliers
+  const sharesRaw=shares.map((v,i)=>{
+    // Try deriving shares from market cap / price
+    const p=priceAtQ[i];
+    if(v!==null&&v>0){
+      // sanity check: if shares look like they might be in wrong unit
+      // typical shares are between 100M and 50B
+      if(v>1e8&&v<5e10)return v; // looks correct
+      if(v>1e5&&v<5e7)return v*1000; // might be in thousands
+    }
+    return null;
+  });
+  // fill nulls with neighbors
+  const sharesInterp=[...sharesRaw];
+  // first pass: fill from neighbors
+  for(let pass=0;pass<3;pass++){
+    for(let i=0;i<sharesInterp.length;i++){
+      if(sharesInterp[i]===null){
+        let prev=null,next=null;
+        for(let j=i-1;j>=0;j--){if(sharesInterp[j]!==null){prev=sharesInterp[j];break;}}
+        for(let j=i+1;j<sharesInterp.length;j++){if(sharesInterp[j]!==null){next=sharesInterp[j];break;}}
+        sharesInterp[i]=prev??next;
+      }
+    }
   }
-  // interpolate nulls from neighbors
-  for(let i=0;i<sharesInterp.length;i++){
-    if(sharesInterp[i]===null){
-      let prev=null,next=null;
-      for(let j=i-1;j>=0;j--){if(sharesInterp[j]!==null){prev=sharesInterp[j];break;}}
-      for(let j=i+1;j<sharesInterp.length;j++){if(sharesInterp[j]!==null){next=sharesInterp[j];break;}}
-      sharesInterp[i]=prev??next;
+  // second pass: detect and replace outliers (>50% from median)
+  const validSh=sharesInterp.filter(v=>v!==null).sort((a,b)=>a-b);
+  const medSh=validSh.length?validSh[Math.floor(validSh.length/2)]:null;
+  if(medSh){
+    for(let i=0;i<sharesInterp.length;i++){
+      if(sharesInterp[i]!==null&&Math.abs(sharesInterp[i]-medSh)/medSh>0.5){
+        sharesInterp[i]=null;
+      }
+    }
+    // re-interpolate after outlier removal
+    for(let i=0;i<sharesInterp.length;i++){
+      if(sharesInterp[i]===null){
+        let prev=null,next=null;
+        for(let j=i-1;j>=0;j--){if(sharesInterp[j]!==null){prev=sharesInterp[j];break;}}
+        for(let j=i+1;j<sharesInterp.length;j++){if(sharesInterp[j]!==null){next=sharesInterp[j];break;}}
+        sharesInterp[i]=prev??next??medSh;
+      }
     }
   }
 
