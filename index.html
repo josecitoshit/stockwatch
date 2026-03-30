@@ -621,6 +621,7 @@ async function fetchYahooFinancials(ticker){
       byDate[d].netIncome=n(s.netIncome);
       byDate[d].eps=n(s.dilutedEPS)??n(s.basicEPS);
       byDate[d].sharesOut=n(s.dilutedAverageShares)??n(s.basicAverageShares);
+      byDate[d].sharesFromBS=null; // will be filled from balance sheet
     }
     for(const s of bal){
       const d=s.endDate?.fmt;if(!d)continue;
@@ -629,6 +630,8 @@ async function fetchYahooFinancials(ticker){
       byDate[d].liabilities=n(s.totalLiab);
       byDate[d].equity=n(s.totalStockholderEquity);
       byDate[d].longDebt=n(s.longTermDebt);
+      // commonStockShares is more reliable for Q4 than income stmt averages
+      byDate[d].sharesFromBS=n(s.commonStockSharesOutstanding);
     }
     for(const s of cf){
       const d=s.endDate?.fmt;if(!d)continue;
@@ -655,7 +658,7 @@ function extractYahooSeries(rows){
     revenue.push(r.revenue??null);
     netIncome.push(r.netIncome??null);
     eps.push(r.eps??null);
-    sharesOut.push(r.sharesOut??null);
+    sharesOut.push(r.sharesOut??r.sharesFromBS??null);
     assets.push(r.assets??null);
     liabilities.push(r.liabilities??null);
     equity.push(r.equity??null);
@@ -856,11 +859,18 @@ async function renderFsCharts(ticker,wCloses,wTimestamps){
   const fcfQ=qLbls.map((_,i)=>qv(s.fcf,i));
 
   // Calculated ratios at quarterly dates
-  // Interpolate missing shares values from neighbors
+  // Fix shares: interpolate nulls AND replace outliers (values >50% different from median)
   const sharesInterp=[...shares];
+  const validShares=sharesInterp.filter(v=>v!==null);
+  const medShares=validShares.length?validShares.sort((a,b)=>a-b)[Math.floor(validShares.length/2)]:null;
+  for(let i=0;i<sharesInterp.length;i++){
+    const v=sharesInterp[i];
+    // mark as null if outlier (>60% deviation from median)
+    if(v!==null&&medShares&&Math.abs(v-medShares)/medShares>0.6)sharesInterp[i]=null;
+  }
+  // interpolate nulls from neighbors
   for(let i=0;i<sharesInterp.length;i++){
     if(sharesInterp[i]===null){
-      // look for nearest non-null neighbor
       let prev=null,next=null;
       for(let j=i-1;j>=0;j--){if(sharesInterp[j]!==null){prev=sharesInterp[j];break;}}
       for(let j=i+1;j<sharesInterp.length;j++){if(sharesInterp[j]!==null){next=sharesInterp[j];break;}}
