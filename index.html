@@ -602,7 +602,7 @@ async function fetchPolyFinancials(ticker){
 function extractFinancialSeries(results){
   const labels=[],dates=[],revenue=[],netIncome=[],eps=[],sharesOut=[],
         assets=[],liabilities=[],equity=[],longDebt=[],
-        grossProfit=[],operatingIncome=[],operatingCF=[];
+        grossProfit=[],operatingIncome=[],operatingCF=[],fcf=[];
   for(const r of results){
     const fin=r.financials||{};
     const inc=fin.income_statement||{};
@@ -624,8 +624,11 @@ function extractFinancialSeries(results){
     grossProfit.push(n(inc.gross_profit));
     operatingIncome.push(n(inc.operating_income_loss));
     operatingCF.push(n(cf.net_cash_flow_from_operating_activities));
+    fcf.push(n(cf.net_cash_flow_from_investing_activities)!==null&&n(cf.net_cash_flow_from_operating_activities)!==null
+      ? n(cf.net_cash_flow_from_operating_activities)+n(cf.net_cash_flow_from_investing_activities)
+      : null);
   }
-  return{labels,dates,revenue,netIncome,eps,sharesOut,assets,liabilities,equity,longDebt,grossProfit,operatingIncome,operatingCF};
+  return{labels,dates,revenue,netIncome,eps,sharesOut,assets,liabilities,equity,longDebt,grossProfit,operatingIncome,operatingCF,fcf};
 }
 
 function alignToWeekly(qDates,qData,wTimestamps){
@@ -650,24 +653,42 @@ const fmtBig=v=>{if(v===null||v===undefined)return '';if(Math.abs(v)>=1e9)return
 const fmtRatio=v=>v?.toFixed(2)??'';
 const fmtPct=v=>v!==null?v.toFixed(1)+'%':'';
 
-function mkDual(id,wLabels,priceData,leftDatasets,rightDatasets,rightTickFmt){
+function mkDual(id,qLbls,priceData,leftDatasets,rightDatasets,rightTickFmt,leftTickFmt){
   const ctx=document.getElementById(id)?.getContext('2d');
   if(!ctx)return;
   if(fsCharts[id])fsCharts[id].destroy();
+  // Price: visible line but no axis labels/title
   const priceDs={label:'Precio',data:priceData,type:'line',borderColor:'#33bbff',borderWidth:2,pointRadius:0,fill:false,yAxisID:'yPrice',order:0};
-  const allDs=[priceDs,...leftDatasets.map(d=>({...d,yAxisID:'yLeft',order:1})),...rightDatasets.map(d=>({...d,yAxisID:'yRight',order:2}))];
+  const allDs=[
+    ...leftDatasets.map(d=>({...d,yAxisID:'yLeft',order:2})),
+    priceDs,
+    ...rightDatasets.map(d=>({...d,yAxisID:'yRight',order:1})),
+  ];
   fsCharts[id]=new Chart(ctx,{
     type:'bar',
-    data:{labels:wLabels,datasets:allDs},
+    data:{labels:qLbls,datasets:allDs},
     options:{
       responsive:true,maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
       plugins:{legend:{display:true,labels:{font:{size:10},color:'#b0b0b0',boxWidth:10,padding:8}}},
       scales:{
         x:{ticks:{font:{size:9},color:TC,maxTicksLimit:14,maxRotation:45},grid:{color:GC}},
-        yPrice:{type:'linear',position:'left',ticks:{font:{size:9},color:'#33bbff',callback:v=>'$'+v.toFixed(0)},grid:{color:GC},title:{display:true,text:'Precio',color:'#33bbff',font:{size:9}}},
-        yLeft:{type:'linear',position:'right',ticks:{font:{size:9},color:'#b0b0b0',callback:fmtBig},grid:{drawOnChartArea:false}},
-        yRight:{type:'linear',position:'right',ticks:{font:{size:9},color:'#ffbb00',callback:rightTickFmt||fmtRatio},grid:{drawOnChartArea:false},offset:true},
+        yLeft:{
+          type:'linear',position:'left',
+          ticks:{font:{size:9},color:'#ffbb00',callback:leftTickFmt||(v=>v?.toFixed(1))},
+          grid:{color:GC},
+        },
+        yRight:{
+          type:'linear',position:'right',
+          ticks:{font:{size:9},color:'#b0b0b0',callback:rightTickFmt||fmtBig},
+          grid:{drawOnChartArea:false},
+        },
+        yPrice:{
+          type:'linear',position:'right',
+          ticks:{display:false},
+          grid:{drawOnChartArea:false},
+          title:{display:false},
+        },
       }
     }
   });
@@ -721,6 +742,7 @@ async function renderFsCharts(ticker,wCloses,wTimestamps){
   const gp=qLbls.map((_,i)=>qv(s.grossProfit,i));
   const oi=qLbls.map((_,i)=>qv(s.operatingIncome,i));
   const ocf=qLbls.map((_,i)=>qv(s.operatingCF,i));
+  const fcfQ=qLbls.map((_,i)=>qv(s.fcf,i));
 
   // Calculated ratios at quarterly dates
   const pe=priceAtQ.map((p,i)=>{const e=eps[i];return(p&&e&&e>0)?+(p/e).toFixed(1):null;});
@@ -742,47 +764,56 @@ async function renderFsCharts(ticker,wCloses,wTimestamps){
       <div class="chart-box"><div class="chart-box-title">Precio · Net Income · ROE · ROA</div><div style="height:220px;"><canvas id="fsCh2"></canvas></div></div>
       <div class="chart-box"><div class="chart-box-title">Precio · EPS · Shares Outstanding</div><div style="height:220px;"><canvas id="fsCh3"></canvas></div></div>
       <div class="chart-box"><div class="chart-box-title">Precio · Assets · Liabilities · Equity · Debt/Equity</div><div style="height:220px;"><canvas id="fsCh4"></canvas></div></div>
-      <div class="chart-box"><div class="chart-box-title">Precio · Gross Margin · Operating Margin · Net Margin · Net Cash Flow</div><div style="height:220px;"><canvas id="fsCh5"></canvas></div></div>
+      <div class="chart-box"><div class="chart-box-title">Precio · Gross Margin · Operating Margin · Net Margin</div><div style="height:220px;"><canvas id="fsCh5"></canvas></div></div>
+      <div class="chart-box"><div class="chart-box-title">Precio · Net Cash Flow · Free Cash Flow</div><div style="height:220px;"><canvas id="fsCh6"></canvas></div></div>
       `}
     </div>`;
 
-  // mkDual now uses quarterly labels + interpolated price
+  // Chart 1: P/E + P/B left, Revenue right, Price hidden
   mkDual('fsCh1',qLbls,priceAtQ,[
-    {label:'Revenue',data:rev,type:'bar',backgroundColor:'rgba(0,255,136,0.25)',borderRadius:2},
-  ],[
     {label:'P/E',data:pe,type:'line',borderColor:'#ffbb00',borderWidth:2,pointRadius:3,fill:false},
     {label:'P/B',data:pb,type:'line',borderColor:'#ff3355',borderWidth:2,pointRadius:3,fill:false},
-  ],v=>v?.toFixed(1));
+  ],[
+    {label:'Revenue',data:rev,type:'bar',backgroundColor:'rgba(0,255,136,0.25)',borderRadius:2},
+  ],fmtBig,v=>v?.toFixed(1)+'x');
 
   if(!noData){
+    // Chart 2: ROE+ROA left, Net Income right, Price hidden
     mkDual('fsCh2',qLbls,priceAtQ,[
-      {label:'Net Income',data:ni,type:'bar',backgroundColor:ni.map(v=>v===null?'transparent':v>=0?'rgba(0,255,136,0.35)':'rgba(255,51,85,0.35)'),borderRadius:2},
-    ],[
       {label:'ROE %',data:roe,type:'line',borderColor:'#ffbb00',borderWidth:2,pointRadius:3,fill:false},
       {label:'ROA %',data:roa,type:'line',borderColor:'#ff3355',borderWidth:2,pointRadius:3,fill:false},
-    ],v=>v?.toFixed(1)+'%');
-
-    mkDual('fsCh3',qLbls,priceAtQ,[
-      {label:'EPS',data:eps,type:'bar',backgroundColor:eps.map(v=>v===null?'transparent':v>=0?'rgba(0,255,136,0.4)':'rgba(255,51,85,0.4)'),borderRadius:2},
     ],[
-      {label:'Shares Out (M)',data:shares.map(v=>v?+(v/1e6).toFixed(1):null),type:'line',borderColor:'#ffbb00',borderWidth:2,pointRadius:3,fill:false},
-    ],v=>v?.toFixed(0)+'M');
+      {label:'Net Income',data:ni,type:'bar',backgroundColor:ni.map(v=>v===null?'transparent':v>=0?'rgba(0,255,136,0.35)':'rgba(255,51,85,0.35)'),borderRadius:2},
+    ],fmtBig,v=>v?.toFixed(1)+'%');
 
+    // Chart 3: Shares left, EPS right, Price hidden
+    mkDual('fsCh3',qLbls,priceAtQ,[
+      {label:'Shares Out (M)',data:shares.map(v=>v?+(v/1e6).toFixed(1):null),type:'line',borderColor:'#ffbb00',borderWidth:2,pointRadius:3,fill:false},
+    ],[
+      {label:'EPS',data:eps,type:'bar',backgroundColor:eps.map(v=>v===null?'transparent':v>=0?'rgba(0,255,136,0.4)':'rgba(255,51,85,0.4)'),borderRadius:2},
+    ],fmtBig,v=>v?.toFixed(0)+'M');
+
+    // Chart 4: Debt/Equity left, Assets+Liabilities+Equity right, Price hidden
     mkDual('fsCh4',qLbls,priceAtQ,[
+      {label:'Debt/Equity',data:debtEq,type:'line',borderColor:'#ffbb00',borderWidth:2,pointRadius:3,fill:false},
+    ],[
       {label:'Assets',data:assets,type:'bar',backgroundColor:'rgba(51,187,255,0.3)',borderRadius:2},
       {label:'Liabilities',data:liab,type:'bar',backgroundColor:'rgba(255,51,85,0.3)',borderRadius:2},
       {label:'Equity',data:eq,type:'bar',backgroundColor:'rgba(0,255,136,0.3)',borderRadius:2},
-    ],[
-      {label:'Debt/Equity',data:debtEq,type:'line',borderColor:'#ffbb00',borderWidth:2,pointRadius:3,fill:false},
-    ],v=>v?.toFixed(2)+'x');
+    ],fmtBig,v=>v?.toFixed(2)+'x');
 
+    // Chart 5: Margins left, Price hidden
     mkDual('fsCh5',qLbls,priceAtQ,[
-      {label:'Net Cash Flow',data:ocf,type:'bar',backgroundColor:ocf.map(v=>v===null?'transparent':v>=0?'rgba(51,187,255,0.3)':'rgba(255,51,85,0.3)'),borderRadius:2},
-    ],[
       {label:'Gross Margin %',data:gm,type:'line',borderColor:'#00ff88',borderWidth:2,pointRadius:3,fill:false},
       {label:'Op. Margin %',data:om,type:'line',borderColor:'#ffbb00',borderWidth:2,pointRadius:3,borderDash:[4,3],fill:false},
       {label:'Net Margin %',data:nm,type:'line',borderColor:'#ff3355',borderWidth:2,pointRadius:3,borderDash:[4,3],fill:false},
-    ],v=>v?.toFixed(1)+'%');
+    ],[],null,v=>v?.toFixed(1)+'%');
+
+    // Chart 6: Net Cash Flow + FCF right, Price hidden
+    mkDual('fsCh6',qLbls,priceAtQ,[],[
+      {label:'Net Cash Flow',data:ocf,type:'bar',backgroundColor:ocf.map(v=>v===null?'transparent':v>=0?'rgba(51,187,255,0.35)':'rgba(255,51,85,0.35)'),borderRadius:2},
+      {label:'FCF',data:fcfQ,type:'bar',backgroundColor:fcfQ.map(v=>v===null?'transparent':v>=0?'rgba(0,255,136,0.35)':'rgba(255,51,85,0.35)'),borderRadius:2},
+    ],fmtBig,null);
   }
 } // cached S&P500 return over last 20 weeks
 let spyReturn20W=null; // cached S&P500 return over last 20 weeks
