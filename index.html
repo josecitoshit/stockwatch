@@ -591,12 +591,118 @@ function destroyFsCharts(){Object.values(fsCharts).forEach(c=>{try{c.destroy();}
 async function fetchPolyFinancials(ticker){
   const key=getPolyKey();if(!key)return[];
   try{
-    // order=desc gets most recent first, then we reverse for chronological order
     const url=`https://api.polygon.io/vX/reference/financials?ticker=${encodeURIComponent(ticker)}&timeframe=quarterly&limit=20&sort=period_of_report_date&order=desc&apiKey=${key}`;
     const d=await proxyFetch(url);
     const results=d.results||[];
-    return results.reverse(); // chronological order (oldest first)
+    return results.reverse();
   }catch(e){return[];}
+}
+
+async function fetchYahooFinancials(ticker){
+  // Yahoo v10 quoteSummary with financial statements
+  const modules='incomeStatementHistoryQuarterly,balanceSheetHistoryQuarterly,cashflowStatementHistoryQuarterly';
+  const url=`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=${modules}`;
+  try{
+    const data=await proxyFetch(url);
+    const r=data.quoteSummary?.result?.[0];
+    if(!r)return[];
+    const inc=r.incomeStatementHistoryQuarterly?.incomeStatementHistory||[];
+    const bal=r.balanceSheetHistoryQuarterly?.balanceSheetHistory||[];
+    const cf=r.cashflowStatementHistoryQuarterly?.cashflowStatements||[];
+    // Build unified quarterly array aligned by endDate
+    const n=v=>v?.raw??null;
+    const byDate={};
+    for(const s of inc){
+      const d=s.endDate?.fmt;if(!d)continue;
+      if(!byDate[d])byDate[d]={date:d};
+      byDate[d].revenue=n(s.totalRevenue);
+      byDate[d].grossProfit=n(s.grossProfit);
+      byDate[d].operatingIncome=n(s.operatingIncome)??n(s.ebit);
+      byDate[d].netIncome=n(s.netIncome);
+      byDate[d].eps=n(s.dilutedEPS)??n(s.basicEPS);
+      byDate[d].sharesOut=n(s.dilutedAverageShares)??n(s.basicAverageShares);
+    }
+    for(const s of bal){
+      const d=s.endDate?.fmt;if(!d)continue;
+      if(!byDate[d])byDate[d]={date:d};
+      byDate[d].assets=n(s.totalAssets);
+      byDate[d].liabilities=n(s.totalLiab);
+      byDate[d].equity=n(s.totalStockholderEquity);
+      byDate[d].longDebt=n(s.longTermDebt);
+    }
+    for(const s of cf){
+      const d=s.endDate?.fmt;if(!d)continue;
+      if(!byDate[d])byDate[d]={date:d};
+      byDate[d].operatingCF=n(s.totalCashFromOperatingActivities);
+      byDate[d].investingCF=n(s.totalCashflowsFromInvestingActivities);
+    }
+    // Sort chronologically, keep last 20
+    return Object.values(byDate).sort((a,b)=>a.date.localeCompare(b.date)).slice(-20);
+  }catch(e){return[];}
+}
+
+function extractYahooSeries(rows){
+  const labels=[],dates=[],revenue=[],netIncome=[],eps=[],sharesOut=[],
+        assets=[],liabilities=[],equity=[],longDebt=[],
+        grossProfit=[],operatingIncome=[],operatingCF=[],fcf=[];
+  for(const r of rows){
+    const d=r.date;
+    // label: "2024 Q3" style from date
+    const dt=new Date(d+'T12:00:00Z');
+    const q='Q'+Math.ceil((dt.getUTCMonth()+1)/3);
+    labels.push(`${dt.getUTCFullYear()} ${q}`);
+    dates.push(Date.parse(d+'T12:00:00Z')/1000);
+    revenue.push(r.revenue??null);
+    netIncome.push(r.netIncome??null);
+    eps.push(r.eps??null);
+    sharesOut.push(r.sharesOut??null);
+    assets.push(r.assets??null);
+    liabilities.push(r.liabilities??null);
+    equity.push(r.equity??null);
+    longDebt.push(r.longDebt??null);
+    grossProfit.push(r.grossProfit??null);
+    operatingIncome.push(r.operatingIncome??null);
+    operatingCF.push(r.operatingCF??null);
+    const fcfVal=(r.operatingCF!=null&&r.investingCF!=null)?r.operatingCF+r.investingCF:null;
+    fcf.push(fcfVal);
+  }
+  return{labels,dates,revenue,netIncome,eps,sharesOut,assets,liabilities,equity,longDebt,grossProfit,operatingIncome,operatingCF,fcf};
+}
+
+// Merge two series — prefer Yahoo per quarter, fill gaps with Polygon
+function mergeFinancialSeries(yahoo,poly){
+  if(!yahoo.dates.length)return poly;
+  if(!poly.dates.length)return yahoo;
+  // Build map by approximate date (within 45 days = same quarter)
+  const merged={labels:[],dates:[],revenue:[],netIncome:[],eps:[],sharesOut:[],
+    assets:[],liabilities:[],equity:[],longDebt:[],grossProfit:[],operatingIncome:[],operatingCF:[],fcf:[]};
+  const fields=['revenue','netIncome','eps','sharesOut','assets','liabilities','equity','longDebt','grossProfit','operatingIncome','operatingCF','fcf'];
+  // Use Yahoo as base, fill nulls from Polygon
+  const allDates=[...new Set([...yahoo.dates,...poly.dates])].sort((a,b)=>a-b);
+  const DAY45=45*24*3600;
+  const findNearest=(series,ts)=>{
+    let best=null,bestDiff=Infinity;
+    for(let i=0;i<series.dates.length;i++){
+      const diff=Math.abs(series.dates[i]-ts);
+      if(diff<bestDiff&&diff<DAY45){bestDiff=diff;best=i;}
+    }
+    return best;
+  };
+  for(const ts of allDates){
+    const yi=findNearest(yahoo,ts);
+    const pi=findNearest(poly,ts);
+    if(yi===null&&pi===null)continue;
+    const src=yi!==null?yahoo:poly;
+    const idx=yi!==null?yi:pi;
+    merged.labels.push(src.labels[idx]);
+    merged.dates.push(ts);
+    for(const f of fields){
+      const yv=yi!==null?yahoo[f][yi]:null;
+      const pv=pi!==null?poly[f]?.[pi]??null:null;
+      merged[f].push(yv??pv);
+    }
+  }
+  return merged;
 }
 
 function extractFinancialSeries(results){
@@ -699,9 +805,14 @@ async function renderFsCharts(ticker,wCloses,wTimestamps){
   container.innerHTML=`<div class="charts-loading">⏳ Cargando gráficos...</div>`;
   destroyFsCharts();
 
-  const results=await fetchPolyFinancials(ticker);
-  const s=extractFinancialSeries(results);
-  const noData=results.length===0;
+  const [polyResults,yahooRows]=await Promise.all([
+    fetchPolyFinancials(ticker),
+    fetchYahooFinancials(ticker),
+  ]);
+  const polySeries=extractFinancialSeries(polyResults);
+  const yahooSeries=extractYahooSeries(yahooRows);
+  const s=mergeFinancialSeries(yahooSeries,polySeries);
+  const noData=s.dates.length===0;
 
   // Use all available quarters (already limited to 20 = ~5 years)
   const qIdx=s.dates.map((d,i)=>i).filter(i=>s.dates[i]!==null);
@@ -809,11 +920,16 @@ async function renderFsCharts(ticker,wCloses,wTimestamps){
       {label:'Net Margin %',data:nm,type:'line',borderColor:'#ff3355',borderWidth:2,pointRadius:3,borderDash:[4,3],fill:false},
     ],[],null,v=>v?.toFixed(1)+'%');
 
-    // Chart 6: Net Cash Flow + FCF right, Price hidden
-    mkDual('fsCh6',qLbls,priceAtQ,[],[
+    // Chart 6: Net Cash Flow bars right, FCF Yield line left, Price hidden
+    const fcfYieldQ=fcfQ.map((v,i)=>{
+      const mktCap=priceAtQ[i]&&shares[i]?priceAtQ[i]*shares[i]:null;
+      return(v!==null&&mktCap&&mktCap>0)?+(v/mktCap*100).toFixed(2):null;
+    });
+    mkDual('fsCh6',qLbls,priceAtQ,[
+      {label:'FCF Yield %',data:fcfYieldQ,type:'line',borderColor:'#00ff88',borderWidth:2,pointRadius:3,fill:false},
+    ],[
       {label:'Net Cash Flow',data:ocf,type:'bar',backgroundColor:ocf.map(v=>v===null?'transparent':v>=0?'rgba(51,187,255,0.35)':'rgba(255,51,85,0.35)'),borderRadius:2},
-      {label:'FCF',data:fcfQ,type:'bar',backgroundColor:fcfQ.map(v=>v===null?'transparent':v>=0?'rgba(0,255,136,0.35)':'rgba(255,51,85,0.35)'),borderRadius:2},
-    ],fmtBig,null);
+    ],fmtBig,v=>v?.toFixed(1)+'%');
   }
 } // cached S&P500 return over last 20 weeks
 let spyReturn20W=null; // cached S&P500 return over last 20 weeks
