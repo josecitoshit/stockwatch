@@ -803,7 +803,7 @@ function mkDual(id,qLbls,priceData,leftDatasets,rightDatasets,rightTickFmt,leftT
   });
 }
 
-async function renderFsCharts(ticker,wCloses,wTimestamps){
+async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding){
   const container=document.getElementById('fsCharts');
   container.innerHTML=`<div class="charts-loading">⏳ Cargando gráficos...</div>`;
   destroyFsCharts();
@@ -859,49 +859,26 @@ async function renderFsCharts(ticker,wCloses,wTimestamps){
   const fcfQ=qLbls.map((_,i)=>qv(s.fcf,i));
 
   // Calculated ratios at quarterly dates
-  // Fix shares: derive from mktCap/price as most reliable source
-  // then interpolate any remaining nulls and remove outliers
-  const sharesRaw=shares.map((v,i)=>{
-    // Try deriving shares from market cap / price
-    const p=priceAtQ[i];
-    if(v!==null&&v>0){
-      // sanity check: if shares look like they might be in wrong unit
-      // typical shares are between 100M and 50B
-      if(v>1e8&&v<5e10)return v; // looks correct
-      if(v>1e5&&v<5e7)return v*1000; // might be in thousands
-    }
-    return null;
-  });
-  // fill nulls with neighbors
-  const sharesInterp=[...sharesRaw];
-  // first pass: fill from neighbors
-  for(let pass=0;pass<3;pass++){
+  // Fix shares: use Yahoo meta sharesOutstanding as anchor (most reliable)
+  // For historical quarters, scale relative to current known value
+  const sharesInterp=[...shares];
+  // First: detect bad values using meta shares as reference
+  if(sharesOutstanding&&sharesOutstanding>0){
     for(let i=0;i<sharesInterp.length;i++){
-      if(sharesInterp[i]===null){
-        let prev=null,next=null;
-        for(let j=i-1;j>=0;j--){if(sharesInterp[j]!==null){prev=sharesInterp[j];break;}}
-        for(let j=i+1;j<sharesInterp.length;j++){if(sharesInterp[j]!==null){next=sharesInterp[j];break;}}
-        sharesInterp[i]=prev??next;
-      }
+      const v=sharesInterp[i];
+      if(v===null)continue;
+      // If value differs >40% from current shares, it's likely wrong units or bad data
+      if(Math.abs(v-sharesOutstanding)/sharesOutstanding>0.4)sharesInterp[i]=null;
     }
   }
-  // second pass: detect and replace outliers (>50% from median)
-  const validSh=sharesInterp.filter(v=>v!==null).sort((a,b)=>a-b);
-  const medSh=validSh.length?validSh[Math.floor(validSh.length/2)]:null;
-  if(medSh){
-    for(let i=0;i<sharesInterp.length;i++){
-      if(sharesInterp[i]!==null&&Math.abs(sharesInterp[i]-medSh)/medSh>0.5){
-        sharesInterp[i]=null;
-      }
-    }
-    // re-interpolate after outlier removal
-    for(let i=0;i<sharesInterp.length;i++){
-      if(sharesInterp[i]===null){
-        let prev=null,next=null;
-        for(let j=i-1;j>=0;j--){if(sharesInterp[j]!==null){prev=sharesInterp[j];break;}}
-        for(let j=i+1;j<sharesInterp.length;j++){if(sharesInterp[j]!==null){next=sharesInterp[j];break;}}
-        sharesInterp[i]=prev??next??medSh;
-      }
+  // Interpolate nulls from neighbors
+  for(let i=0;i<sharesInterp.length;i++){
+    if(sharesInterp[i]===null){
+      let prev=null,next=null;
+      for(let j=i-1;j>=0;j--){if(sharesInterp[j]!==null){prev=sharesInterp[j];break;}}
+      for(let j=i+1;j<sharesInterp.length;j++){if(sharesInterp[j]!==null){next=sharesInterp[j];break;}}
+      // fallback to current shares outstanding from meta
+      sharesInterp[i]=prev??next??sharesOutstanding;
     }
   }
 
@@ -1066,6 +1043,7 @@ async function startLoad(){
         prevClose=validPairs[validPairs.length-2].v;
       }
       const price=meta.regularMarketPrice??last(closes);
+      const sharesOutstanding=meta.sharesOutstanding??null;
       const chg=(price&&prevClose)?price-prevClose:null;
       const chgPct=(price&&prevClose)?((price/prevClose)-1)*100:null;
 
@@ -1107,7 +1085,7 @@ async function startLoad(){
         sma20W,sma20WDev,vsSP500,
         pe,pb,roe,roa,fcfYield,divYield,eps,marketCap,
         rsiW:last(rsiWA),macdW:last(macdWO.macd),macdSigW:last(macdWO.signal),
-        wCloses:wc,wTimestamps:wk.t,
+        wCloses:wc,wTimestamps:wk.t,sharesOutstanding,
         rallies:null,drops:null,situation:null, // eco pending
         ecoReady:false,
         totalPivots:0,
@@ -1408,7 +1386,7 @@ function openFullscreen(){
     ? buildEcoHtml(d)
     : '<div class="loading-msg" style="color:var(--amber);">⏳ Calculando análisis econométrico...</div>';
   document.getElementById('fsOverlay').classList.add('open');
-  renderFsCharts(d.ticker,d.wCloses,d.wTimestamps);
+  renderFsCharts(d.ticker,d.wCloses,d.wTimestamps,d.sharesOutstanding);
 }
 function closeFullscreen(){
   destroyFsCharts();
