@@ -442,9 +442,9 @@ function buildSegments(closes,timestamps){
     const bars=b.idx-a.idx;
     segments.push({from:fmtDate(a.ts),to:fmtDate(b.ts),priceFrom:a.price,priceTo:b.price,pct,bars,weeks:+(bars/5).toFixed(1),fromIdx:a.idx,toIdx:b.idx});
   }
-  const rallies=segments.filter(s=>s.pct>10).sort((a,b)=>b.pct-a.pct).slice(0,8);
-  const drops=segments.filter(s=>s.pct<-10).sort((a,b)=>a.pct-b.pct).slice(0,8);
-  return{rallies,drops,all:segments};
+  const rallies=segments.filter(s=>s.pct>10).sort((a,b)=>b.pct-a.pct).slice(0,5);
+  const drops=segments.filter(s=>s.pct<-10).sort((a,b)=>a.pct-b.pct).slice(0,5);
+  return{rallies,drops,all:segments,pivotCount:pivots.length};
 }
 function findFollowup(seg,closes,timestamps){
   const endIdx=seg.toIdx;
@@ -856,8 +856,24 @@ async function renderFsCharts(ticker,wCloses,wTimestamps){
   const fcfQ=qLbls.map((_,i)=>qv(s.fcf,i));
 
   // Calculated ratios at quarterly dates
-  const pe=priceAtQ.map((p,i)=>{const e=eps[i];return(p&&e&&e>0)?+(p/e).toFixed(1):null;});
-  const pb=priceAtQ.map((p,i)=>{const e=eq[i],sh=shares[i];if(!p||!e||!sh||sh===0)return null;const bps=e/sh;return bps>0?+(p/bps).toFixed(2):null;});
+  // P/E uses TTM EPS = sum of last 4 quarters rolling
+  const pe=priceAtQ.map((p,i)=>{
+    if(!p)return null;
+    // sum last 4 quarters of EPS up to index i
+    const slice=eps.slice(Math.max(0,i-3),i+1).filter(v=>v!==null);
+    if(slice.length<2)return null; // need at least 2 quarters
+    const ttm=slice.reduce((a,b)=>a+b,0);
+    return ttm>0?+(p/ttm).toFixed(1):null;
+  });
+  // P/B = price / (equity / shares) — equity from balance sheet, shares from income stmt
+  const pb=priceAtQ.map((p,i)=>{
+    if(!p)return null;
+    const e=eq[i];
+    // shares: try income stmt shares, fallback to equity/book
+    const sh=shares[i];
+    if(e&&sh&&sh>0){const bps=e/sh;return bps>0?+(p/bps).toFixed(2):null;}
+    return null;
+  });
   const roe=ni.map((v,i)=>pct(v,eq[i]));
   const roa=ni.map((v,i)=>pct(v,assets[i]));
   const debtEq=debt.map((v,i)=>ratio(v,eq[i]));
@@ -1071,12 +1087,12 @@ async function startLoad(){
     if(!d||!d.loaded)continue;
     await sleep(0); // yield to browser between each ticker
     try{
-      const {rallies,drops,all}=buildSegments(d.wCloses,d.wTimestamps);
+      const {rallies,drops,all,pivotCount}=buildSegments(d.wCloses,d.wTimestamps);
       const situation=currentSituation(d.wCloses,d.wTimestamps,all||[]);
       d.rallies=rallies;
       d.drops=drops;
       d.situation=situation;
-      d.totalPivots=rallies.length+drops.length;
+      d.totalPivots=pivotCount||0;
       d.ecoReady=true;
       // if this ticker is currently open in detail, refresh it
       if(selectedTicker===ticker){
@@ -1289,12 +1305,12 @@ function buildEcoHtml(d){
 
   return`
     <div class="eco-section">
-      <div class="eco-hd"><span class="eco-hd-up">▲</span><span class="eco-hd-label-up">TOP 8 RALLIES HISTÓRICOS</span></div>
+      <div class="eco-hd"><span class="eco-hd-up">▲</span><span class="eco-hd-label-up">TOP 5 RALLIES HISTÓRICOS</span></div>
       <table class="eco-table">${mkHeader(true)}<tbody>${rallies.map((r,i)=>mkRow(r,i,true)).join('')}</tbody></table>
     </div>
     <hr class="eco-divider"/>
     <div class="eco-section">
-      <div class="eco-hd"><span class="eco-hd-down">▼</span><span class="eco-hd-label-down">TOP 8 CAÍDAS HISTÓRICAS</span></div>
+      <div class="eco-hd"><span class="eco-hd-down">▼</span><span class="eco-hd-label-down">TOP 5 CAÍDAS HISTÓRICAS</span></div>
       <table class="eco-table">${mkHeader(false)}<tbody>${drops.map((r,i)=>mkRow(r,i,false)).join('')}</tbody></table>
     </div>
     <hr class="eco-divider"/>
@@ -1322,7 +1338,7 @@ function openDetail(ticker){
   chgEl.textContent=d.chgPct!=null?(up?'+':'')+d.chg?.toFixed(2)+'  ('+(up?'+':'')+d.chgPct.toFixed(2)+'%)':'';
   chgEl.style.color=up?'var(--green)':'var(--red)';
   document.getElementById('dTVBtn').onclick=()=>window.open(`https://www.tradingview.com/chart/?symbol=${ticker}&interval=W`,'_blank');
-  document.getElementById('d52w').innerHTML=d.high52&&d.low52?`52w: <span>$${d.low52.toFixed(2)}</span> — <span>$${d.high52.toFixed(2)}</span> &nbsp;|&nbsp; ${d.totalPivots||0} min/max locales`:'';
+  document.getElementById('d52w').innerHTML=d.high52&&d.low52?`en el último año: <span>$${d.low52.toFixed(2)}</span> — <span>$${d.high52.toFixed(2)}</span>`:'';
   document.getElementById('dFund').innerHTML=buildFundHtml(d);
   document.getElementById('dEco').innerHTML=d.ecoReady
     ? buildEcoHtml(d)
@@ -1337,9 +1353,9 @@ function openFullscreen(){
     <span style="font-size:24px;font-weight:700;color:${up?'var(--green)':'var(--red)'};">${fP(d.price)}</span>
     <span style="font-size:16px;font-weight:700;${up?'color:var(--green)':'color:var(--red)'};">${fPct(d.chgPct)} hoy</span>
     <span style="color:var(--text3);">|</span>
-    <span class="d-52w">${d.high52&&d.low52?`52w: <span style="color:#fff;font-weight:700;">$${d.low52.toFixed(2)}</span> — <span style="color:#fff;font-weight:700;">$${d.high52.toFixed(2)}</span>`:''}</span>
+    <span class="d-52w">${d.high52&&d.low52?`en el último año: <span style="color:#fff;font-weight:700;">$${d.low52.toFixed(2)}</span> — <span style="color:#fff;font-weight:700;">$${d.high52.toFixed(2)}</span>`:''}</span>
     <span style="color:var(--text3);">|</span>
-    <span style="color:var(--text3);">${d.totalPivots||0} min/max locales (6 años)</span>`;
+    <span style="color:var(--amber);font-weight:700;">${d.totalPivots||0} min/max locales detectados (6 años)</span>`;
   document.getElementById('fsFund').innerHTML=buildFundHtml(d);
   document.getElementById('fsEco').innerHTML=d.ecoReady
     ? buildEcoHtml(d)
