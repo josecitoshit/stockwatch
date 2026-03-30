@@ -856,21 +856,31 @@ async function renderFsCharts(ticker,wCloses,wTimestamps){
   const fcfQ=qLbls.map((_,i)=>qv(s.fcf,i));
 
   // Calculated ratios at quarterly dates
-  // P/E uses TTM EPS = sum of last 4 quarters rolling
+  // Interpolate missing shares values from neighbors
+  const sharesInterp=[...shares];
+  for(let i=0;i<sharesInterp.length;i++){
+    if(sharesInterp[i]===null){
+      // look for nearest non-null neighbor
+      let prev=null,next=null;
+      for(let j=i-1;j>=0;j--){if(sharesInterp[j]!==null){prev=sharesInterp[j];break;}}
+      for(let j=i+1;j<sharesInterp.length;j++){if(sharesInterp[j]!==null){next=sharesInterp[j];break;}}
+      sharesInterp[i]=prev??next;
+    }
+  }
+
+  // P/E uses TTM EPS (sum of last 4 quarters rolling)
   const pe=priceAtQ.map((p,i)=>{
     if(!p)return null;
-    // sum last 4 quarters of EPS up to index i
     const slice=eps.slice(Math.max(0,i-3),i+1).filter(v=>v!==null);
-    if(slice.length<2)return null; // need at least 2 quarters
+    if(slice.length<2)return null;
     const ttm=slice.reduce((a,b)=>a+b,0);
     return ttm>0?+(p/ttm).toFixed(1):null;
   });
-  // P/B = price / (equity / shares) — equity from balance sheet, shares from income stmt
+  // P/B = price / book value per share — use interpolated shares
   const pb=priceAtQ.map((p,i)=>{
     if(!p)return null;
     const e=eq[i];
-    // shares: try income stmt shares, fallback to equity/book
-    const sh=shares[i];
+    const sh=sharesInterp[i];
     if(e&&sh&&sh>0){const bps=e/sh;return bps>0?+(p/bps).toFixed(2):null;}
     return null;
   });
