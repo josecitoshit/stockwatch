@@ -192,8 +192,10 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 .pf-table tr:hover td{background:var(--bg3);}
 .pf-charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
 .pf-chart-box{background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:14px;}
-.pf-period{padding:3px 8px;font-size:10px;}
-.pf-period.active{color:var(--green);border-color:var(--green);}
+.pf-pills{display:flex;gap:6px;margin-bottom:2px;}
+.pf-pill{padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.06em;cursor:pointer;border:1px solid var(--border2);color:var(--text3);background:transparent;font-family:var(--mono);transition:all .15s;}
+.pf-pill.active{border-color:var(--green);color:var(--green);background:var(--green-bg);}
+
 
 
 /* ADD POSITION MODAL */
@@ -436,10 +438,11 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
           <input id="pfRatio" type="number" placeholder="ej: 20" min="0.001" step="any"/>
         </div>
         <div class="pf-field" id="pfPriceField">
-          <label style="display:flex;align-items:center;justify-content:space-between;">
-            <span id="pfPriceLabel">PRECIO ARS/CEDEAR</span>
-            <span onclick="togglePriceCurrency()" style="cursor:pointer;color:var(--blue);font-size:10px;letter-spacing:.04em;" id="pfPriceToggle">→ ingresar en USD</span>
-          </label>
+          <label>PRECIO POR CEDEAR</label>
+          <div class="pf-pills">
+            <button class="pf-pill active" onclick="setPriceCurrency('ARS')">ARS $</button>
+            <button class="pf-pill" onclick="setPriceCurrency('USD')">USD $</button>
+          </div>
           <input id="pfCostARS" type="number" placeholder="ej: 20509" min="0" step="any" oninput="updateUSDCost()"/>
         </div>
         <div class="pf-field" id="pfCCLField">
@@ -1637,26 +1640,21 @@ function autoFillRatio(){
   }
 }
 
-function togglePriceCurrency(){
-  pfPriceInUSD=!pfPriceInUSD;
-  const lbl=document.getElementById('pfPriceLabel');
-  const tog=document.getElementById('pfPriceToggle');
-  const cclField=document.getElementById('pfCCLField');
+function setPriceCurrency(cur){
+  pfPriceInUSD=(cur==='USD');
+  document.querySelectorAll('.pf-pill').forEach(p=>p.classList.toggle('active',p.textContent.startsWith(cur)));
   const inp=document.getElementById('pfCostARS');
+  const cclField=document.getElementById('pfCCLField');
   if(pfPriceInUSD){
-    lbl.textContent='PRECIO USD/CEDEAR';
-    tog.textContent='→ ingresar en ARS';
     inp.placeholder='ej: 14.50';
     cclField.style.display='none';
     inp.oninput=updateUSDCostDirect;
   }else{
-    lbl.textContent='PRECIO ARS/CEDEAR';
-    tog.textContent='→ ingresar en USD';
     inp.placeholder='ej: 20509';
     cclField.style.display='';
     inp.oninput=updateUSDCost;
   }
-  document.getElementById('pfCostARS').value='';
+  inp.value='';
   document.getElementById('pfCostUSDDisplay').textContent='—';
 }
 
@@ -1692,10 +1690,8 @@ function openPfModal(){
   document.getElementById('pfCost').value='';
   document.getElementById('pfDate').value=new Date().toISOString().slice(0,10);
   pfPriceInUSD=false;
+  setPriceCurrency('ARS');
   document.getElementById('pfCCLField').style.display='';
-  document.getElementById('pfPriceLabel').textContent='PRECIO ARS/CEDEAR';
-  document.getElementById('pfPriceToggle').textContent='→ ingresar en USD';
-  document.getElementById('pfCostARS').placeholder='ej: 20509';
   document.getElementById('pfRatioSource').textContent='';
   document.getElementById('pfResultForm').style.display='none';
   document.getElementById('pfSaveBtn').style.display='none';
@@ -1852,6 +1848,11 @@ function deletePfPosition(id){
   pfPositions=pfPositions.filter(p=>p.id!==id);
   savePf();renderPortfolio();
 }
+function deletePfTicker(ticker){
+  if(!confirm(`Eliminar todas las compras de ${ticker}?`))return;
+  pfPositions=pfPositions.filter(p=>p.ticker!==ticker);
+  savePf();renderPortfolio();
+}
 
 // ── CSV EXPORT/IMPORT ──
 function exportCSV(){
@@ -1923,7 +1924,38 @@ async function renderPortfolio(){
     return{...p,price,currentVal,costVal,plDol,plPct};
   }));
 
-  // Summary cards
+  // Group rows by ticker — weighted average cost, sum shares/cedears
+  const grouped={};
+  for(const r of rows){
+    if(!grouped[r.ticker]){
+      grouped[r.ticker]={
+        ticker:r.ticker,
+        cedears:0,shares:0,
+        costVal:0, // total cost in USD (for weighted avg)
+        ratio:r.ratio,
+        price:r.price,
+        currentVal:r.currentVal,
+        ids:[], // keep all position IDs for delete
+      };
+    }
+    const g=grouped[r.ticker];
+    g.cedears=(g.cedears||0)+(r.cedears||0);
+    g.shares+=r.shares;
+    g.costVal+=r.costVal; // sum of (cost_usd * shares) per position
+    g.ids.push(r.id);
+    // update price/currentVal with latest
+    if(r.price)g.price=r.price;
+    g.currentVal=(g.price??0)*g.shares;
+  }
+  // Compute grouped metrics
+  const groupedRows=Object.values(grouped).map(g=>{
+    const avgCost=g.shares>0?g.costVal/g.shares:0; // weighted avg cost per share
+    const plDol=g.currentVal?g.currentVal-g.costVal:null;
+    const plPct=g.costVal>0&&plDol!==null?(plDol/g.costVal)*100:null;
+    return{...g,cost:avgCost,plDol,plPct};
+  });
+
+  // Summary cards use original rows (for accuracy)
   const totalCost=rows.reduce((a,r)=>a+r.costVal,0);
   const totalVal=rows.reduce((a,r)=>a+(r.currentVal??r.costVal),0);
   const totalPL=totalVal-totalCost;
@@ -1946,23 +1978,23 @@ async function renderPortfolio(){
     <div class="pf-card"><div class="pf-card-label">P&L DIARIO</div><div class="pf-card-val ${dailyPL>=0?'up':'down'}">${fD(dailyPL)} <span style="font-size:12px;">(${dailyPLPct>=0?'+':''}${dailyPLPct.toFixed(2)}%)</span></div></div>
     <div class="pf-card"><div class="pf-card-label">GANANCIAS REALIZADAS</div><div class="pf-card-val" style="color:var(--amber);">—</div></div>`;
 
-  // Table rows
-  tbody.innerHTML=rows.map(r=>`<tr>
-    <td><span class="ts">${r.ticker}</span></td>
-    <td>${r.cedears??'—'}</td>
-    <td style="color:var(--text3);">${r.ratio??'—'}:1</td>
-    <td>${r.shares.toFixed(4)}</td>
-    <td>$${r.cost.toFixed(2)}</td>
-    <td>${r.price?'$'+r.price.toFixed(2):'—'}</td>
-    <td>${r.currentVal?fM(r.currentVal):'—'}</td>
-    <td class="${r.plDol===null?'neu':r.plDol>=0?'up':'down'}">${r.plDol!==null?fD(r.plDol):'—'}</td>
-    <td class="${r.plPct===null?'neu':r.plPct>=0?'up':'down'}">${r.plPct!==null?(r.plPct>=0?'+':'')+r.plPct.toFixed(2)+'%':'—'}</td>
-    <td><button class="btn" onclick="deletePfPosition(${r.id})" style="padding:3px 8px;font-size:10px;color:var(--red);border-color:var(--red);">✕</button></td>
+  // Table rows — grouped by ticker
+  tbody.innerHTML=groupedRows.map(g=>`<tr>
+    <td><span class="ts">${g.ticker}</span></td>
+    <td>${g.cedears??'—'}</td>
+    <td style="color:var(--text3);">${g.ratio??'—'}:1</td>
+    <td>${g.shares.toFixed(4)}</td>
+    <td>$${g.cost.toFixed(2)}</td>
+    <td>${g.price?'$'+g.price.toFixed(2):'—'}</td>
+    <td>${g.currentVal?fM(g.currentVal):'—'}</td>
+    <td class="${g.plDol===null?'neu':g.plDol>=0?'up':'down'}">${g.plDol!==null?fD(g.plDol):'—'}</td>
+    <td class="${g.plPct===null?'neu':g.plPct>=0?'up':'down'}">${g.plPct!==null?(g.plPct>=0?'+':'')+g.plPct.toFixed(2)+'%':'—'}</td>
+    <td><button class="btn" onclick="deletePfTicker('${g.ticker}')" style="padding:3px 8px;font-size:10px;color:var(--red);border-color:var(--red);">✕</button></td>
   </tr>`).join('');
 
   // Charts
   document.getElementById('pfChartsWrap').style.display='grid';
-  renderPfCharts(rows);
+  renderPfCharts(groupedRows);
 }
 
 let pfPeriod='1M';
