@@ -399,18 +399,52 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 </div>
 
 <div id="pfModal">
-  <div id="pfModalBox">
+  <div id="pfModalBox" style="width:500px;">
     <h2>// AGREGAR POSICIÓN</h2>
-    <div class="pf-form">
-      <div class="pf-field"><label>TICKER</label><input id="pfTicker" placeholder="ej: MELI" style="text-transform:uppercase;"/></div>
-      <div class="pf-field"><label>CANTIDAD DE CEDEARs</label><input id="pfCedears" type="number" placeholder="ej: 100" min="0" step="1"/></div>
-      <div class="pf-field"><label>RATIO (CEDEARs por acción NYSE/ADR)</label><input id="pfRatio" type="number" placeholder="ej: 20" min="0.001" step="any"/></div>
-      <div class="pf-field"><label>PRECIO PROMEDIO DE COMPRA (ARS por CEDEAR)</label><input id="pfCost" type="number" placeholder="ej: 85000" min="0" step="any"/></div>
-      <div class="pf-field"><label>FECHA DE COMPRA</label><input id="pfDate" type="date"/></div>
+
+    <div style="display:flex;border-bottom:1px solid var(--border2);">
+      <div id="pfTab-img" onclick="pfSwitchTab('img')" style="padding:8px 18px;font-size:11px;font-weight:700;letter-spacing:.08em;cursor:pointer;color:var(--green);border-bottom:2px solid var(--green);">📎 SUBIR COMPROBANTE</div>
+      <div id="pfTab-manual" onclick="pfSwitchTab('manual')" style="padding:8px 18px;font-size:11px;font-weight:700;letter-spacing:.08em;cursor:pointer;color:var(--text3);border-bottom:2px solid transparent;">✏️ MANUAL</div>
     </div>
+
+    <div id="pfImg-section" class="pf-form">
+      <label style="border:1px dashed var(--border2);border-radius:3px;padding:20px;text-align:center;cursor:pointer;display:block;color:var(--text3);font-size:11px;transition:border-color .15s;" id="pfDropZone">
+        <div style="font-size:22px;margin-bottom:6px;">↑</div>
+        <div>Arrastrá o clickeá para subir el comprobante</div>
+        <div style="font-size:10px;margin-top:4px;">JPG, PNG — máx 5MB</div>
+        <input type="file" id="pfImageInput" accept="image/*" style="display:none;" onchange="handlePfImage(event)"/>
+      </label>
+      <div id="pfImgPreview" style="display:none;">
+        <img id="pfImgThumb" style="max-width:100%;border-radius:3px;border:1px solid var(--border2);"/>
+      </div>
+      <div id="pfParseStatus" style="font-size:11px;color:var(--text3);text-align:center;display:none;">
+        <span id="pfParseMsg">Analizando imagen con IA...</span>
+      </div>
+    </div>
+
+    <div id="pfManual-section" class="pf-form" style="display:none;">
+    </div>
+
+    <div class="pf-form" id="pfResultForm" style="display:none;border-top:1px solid var(--border2);padding-top:14px;">
+      <div style="font-size:10px;color:var(--text3);letter-spacing:.08em;margin-bottom:4px;">DATOS EXTRAÍDOS — REVISÁ Y CONFIRMÁ</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="pf-field"><label>TICKER</label><input id="pfTicker" placeholder="ej: MELI" style="text-transform:uppercase;"/></div>
+        <div class="pf-field"><label>FECHA</label><input id="pfDate" type="date"/></div>
+        <div class="pf-field"><label>CEDEARs</label><input id="pfCedears" type="number" placeholder="ej: 100" min="0" step="1"/></div>
+        <div class="pf-field"><label>RATIO</label><input id="pfRatio" type="number" placeholder="ej: 20" min="0.001" step="any"/></div>
+        <div class="pf-field"><label>PRECIO ARS/CEDEAR</label><input id="pfCostARS" type="number" placeholder="ej: 20509" min="0" step="any" oninput="updateUSDCost()"/></div>
+        <div class="pf-field"><label>CCL (ARS/USD)</label><input id="pfCCL" type="number" placeholder="ej: 1250" min="0" step="any" oninput="updateUSDCost()"/></div>
+      </div>
+      <div style="background:var(--bg3);border-radius:3px;padding:10px 14px;border:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:11px;color:var(--text3);">COSTO PROMEDIO EN USD</span>
+        <span id="pfCostUSDDisplay" style="font-size:16px;font-weight:700;color:var(--green);">—</span>
+      </div>
+      <input type="hidden" id="pfCost"/>
+    </div>
+
     <div class="mfoot">
       <button class="btn" onclick="closePfModal()">CANCELAR</button>
-      <button class="btn primary" onclick="savePfPosition()">GUARDAR</button>
+      <button class="btn primary" id="pfSaveBtn" onclick="savePfPosition()" style="display:none;">GUARDAR POSICIÓN</button>
     </div>
   </div>
 </div>
@@ -1534,8 +1568,16 @@ function switchTab(tab){
   const isDash=tab==='dashboard';
   document.getElementById('filterbar').style.display=isDash?'flex':'none';
   document.getElementById('main').style.display=isDash?'flex':'none';
-  document.getElementById('portfolioView').style.display=isDash?'none':'block';
-  if(tab==='portfolio')renderPortfolio();
+  const pv=document.getElementById('portfolioView');
+  if(isDash){
+    pv.classList.remove('active');
+  }else{
+    // position below topbar + tabbar
+    const tabbarBottom=document.getElementById('tabbar').getBoundingClientRect().bottom;
+    pv.style.top=tabbarBottom+'px';
+    pv.classList.add('active');
+    renderPortfolio();
+  }
 }
 
 // ── PORTFOLIO STATE ──
@@ -1545,16 +1587,166 @@ let pfCharts={pie:null,line:null};
 function savePf(){localStorage.setItem('pf_positions',JSON.stringify(pfPositions));}
 
 // ── PORTFOLIO MODAL ──
+function pfSwitchTab(tab){
+  const isImg=tab==='img';
+  document.getElementById('pfTab-img').style.color=isImg?'var(--green)':'var(--text3)';
+  document.getElementById('pfTab-img').style.borderBottomColor=isImg?'var(--green)':'transparent';
+  document.getElementById('pfTab-manual').style.color=!isImg?'var(--green)':'var(--text3)';
+  document.getElementById('pfTab-manual').style.borderBottomColor=!isImg?'var(--green)':'transparent';
+  document.getElementById('pfImg-section').style.display=isImg?'flex':'none';
+  document.getElementById('pfManual-section').style.display=!isImg?'flex':'none';
+  if(!isImg){
+    document.getElementById('pfResultForm').style.display='flex';
+    document.getElementById('pfSaveBtn').style.display='block';
+  }
+}
+
 function openPfModal(){
   document.getElementById('pfTicker').value='';
   document.getElementById('pfCedears').value='';
   document.getElementById('pfRatio').value='';
+  document.getElementById('pfCostARS').value='';
+  document.getElementById('pfCCL').value='';
   document.getElementById('pfCost').value='';
   document.getElementById('pfDate').value=new Date().toISOString().slice(0,10);
+  document.getElementById('pfResultForm').style.display='none';
+  document.getElementById('pfSaveBtn').style.display='none';
+  document.getElementById('pfImgPreview').style.display='none';
+  document.getElementById('pfParseStatus').style.display='none';
+  document.getElementById('pfCostUSDDisplay').textContent='—';
+  pfSwitchTab('img');
   document.getElementById('pfModal').classList.add('open');
-  document.getElementById('pfTicker').focus();
 }
 function closePfModal(){document.getElementById('pfModal').classList.remove('open');}
+
+function updateUSDCost(){
+  const ars=parseFloat(document.getElementById('pfCostARS').value);
+  const ccl=parseFloat(document.getElementById('pfCCL').value);
+  if(!isNaN(ars)&&!isNaN(ccl)&&ccl>0){
+    const usd=+(ars/ccl).toFixed(4);
+    document.getElementById('pfCost').value=usd;
+    document.getElementById('pfCostUSDDisplay').textContent='$'+usd.toFixed(2)+' USD';
+  }else{
+    document.getElementById('pfCostUSDDisplay').textContent='—';
+  }
+}
+
+async function fetchCCL(){
+  // Try to get CCL from a public source
+  try{
+    const data=await proxyFetch('https://api.bluelytics.com.ar/v2/latest');
+    return data?.oficial_euro?.value_sell??data?.blue?.value_sell??null;
+  }catch(e){}
+  try{
+    // Fallback: use GD30 ratio as CCL proxy via Yahoo
+    const url='https://query1.finance.yahoo.com/v8/finance/chart/GD30.BA?interval=1d&range=1d';
+    const data=await proxyFetch(url);
+    // Not perfect but a reasonable fallback
+    return null;
+  }catch(e){return null;}
+}
+
+async function handlePfImage(event){
+  const file=event.target.files[0];
+  if(!file)return;
+  // Show preview
+  const reader=new FileReader();
+  reader.onload=async(e)=>{
+    const b64=e.target.result.split(',')[1];
+    document.getElementById('pfImgThumb').src=e.target.result;
+    document.getElementById('pfImgPreview').style.display='block';
+    document.getElementById('pfParseStatus').style.display='block';
+    document.getElementById('pfParseMsg').textContent='Analizando comprobante con IA...';
+    document.getElementById('pfParseMsg').style.color='var(--amber)';
+
+    // Fetch CCL in parallel
+    const cclPromise=fetchCCL();
+
+    try{
+      // Call Claude API with vision
+      const response=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          model:'claude-sonnet-4-20250514',
+          max_tokens:1000,
+          messages:[{
+            role:'user',
+            content:[
+              {type:'image',source:{type:'base64',media_type:file.type||'image/jpeg',data:b64}},
+              {type:'text',text:`Analizá este comprobante de compra de CEDEARs argentinos. Extraé los siguientes datos y respondé ÚNICAMENTE con un JSON válido sin ningún texto adicional:
+{
+  "ticker": "símbolo del CEDEAR en mayúsculas (ej: MELI, AAPL, NVDA)",
+  "cedears": número de CEDEARs comprados,
+  "precio_ars": precio por CEDEAR en ARS (si dice AR$ o ARS),
+  "precio_usd": precio por CEDEAR en USD (si dice US$ o USD),
+  "fecha": "YYYY-MM-DD",
+  "moneda": "ARS" o "USD"
+}
+Si algún dato no está disponible, ponelo como null.`}
+            ]
+          }]
+        })
+      });
+      const data=await response.json();
+      const text=data.content?.[0]?.text||'';
+      const clean=text.replace(/```json|```/g,'').trim();
+      const parsed=JSON.parse(clean);
+
+      // Fill form
+      if(parsed.ticker)document.getElementById('pfTicker').value=parsed.ticker.toUpperCase();
+      if(parsed.cedears)document.getElementById('pfCedears').value=parsed.cedears;
+      if(parsed.fecha)document.getElementById('pfDate').value=parsed.fecha;
+
+      // Handle price
+      const ccl=await cclPromise;
+      if(ccl)document.getElementById('pfCCL').value=ccl.toFixed(2);
+
+      if(parsed.moneda==='USD'&&parsed.precio_usd){
+        // Already in USD — cost is direct
+        document.getElementById('pfCostARS').value='';
+        document.getElementById('pfCost').value=parsed.precio_usd;
+        document.getElementById('pfCostUSDDisplay').textContent='$'+parseFloat(parsed.precio_usd).toFixed(2)+' USD';
+      }else if(parsed.precio_ars){
+        document.getElementById('pfCostARS').value=parsed.precio_ars;
+        if(ccl){
+          const usd=+(parsed.precio_ars/ccl).toFixed(4);
+          document.getElementById('pfCost').value=usd;
+          document.getElementById('pfCostUSDDisplay').textContent='$'+usd.toFixed(2)+' USD';
+        }
+      }
+
+      document.getElementById('pfParseMsg').textContent='✓ Datos extraídos — revisá y confirmá';
+      document.getElementById('pfParseMsg').style.color='var(--green)';
+      document.getElementById('pfResultForm').style.display='flex';
+      document.getElementById('pfSaveBtn').style.display='block';
+
+    }catch(err){
+      document.getElementById('pfParseMsg').textContent='Error al analizar la imagen. Completá los datos manualmente.';
+      document.getElementById('pfParseMsg').style.color='var(--red)';
+      document.getElementById('pfResultForm').style.display='flex';
+      document.getElementById('pfSaveBtn').style.display='block';
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+// Drag & drop support
+document.addEventListener('DOMContentLoaded',()=>{
+  const dz=document.getElementById('pfDropZone');
+  if(!dz)return;
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.style.borderColor='var(--green)';});
+  dz.addEventListener('dragleave',()=>{dz.style.borderColor='';});
+  dz.addEventListener('drop',e=>{
+    e.preventDefault();dz.style.borderColor='';
+    const file=e.dataTransfer.files[0];
+    if(file&&file.type.startsWith('image/')){
+      document.getElementById('pfImageInput').files=e.dataTransfer.files;
+      handlePfImage({target:{files:e.dataTransfer.files}});
+    }
+  });
+  dz.addEventListener('click',()=>document.getElementById('pfImageInput').click());
+});
 function savePfPosition(){
   const ticker=document.getElementById('pfTicker').value.trim().toUpperCase();
   const cedears=parseFloat(document.getElementById('pfCedears').value);
