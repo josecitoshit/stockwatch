@@ -428,12 +428,24 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
     <div class="pf-form" id="pfResultForm" style="display:none;border-top:1px solid var(--border2);padding-top:14px;">
       <div style="font-size:10px;color:var(--text3);letter-spacing:.08em;margin-bottom:4px;">DATOS EXTRAÍDOS — REVISÁ Y CONFIRMÁ</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div class="pf-field"><label>TICKER</label><input id="pfTicker" placeholder="ej: MELI" style="text-transform:uppercase;"/></div>
+        <div class="pf-field"><label>TICKER</label><input id="pfTicker" placeholder="ej: MELI" style="text-transform:uppercase;" oninput="autoFillRatio()"/></div>
         <div class="pf-field"><label>FECHA</label><input id="pfDate" type="date"/></div>
         <div class="pf-field"><label>CEDEARs</label><input id="pfCedears" type="number" placeholder="ej: 100" min="0" step="1"/></div>
-        <div class="pf-field"><label>RATIO</label><input id="pfRatio" type="number" placeholder="ej: 20" min="0.001" step="any"/></div>
-        <div class="pf-field"><label>PRECIO ARS/CEDEAR</label><input id="pfCostARS" type="number" placeholder="ej: 20509" min="0" step="any" oninput="updateUSDCost()"/></div>
-        <div class="pf-field"><label>CCL (ARS/USD)</label><input id="pfCCL" type="number" placeholder="ej: 1250" min="0" step="any" oninput="updateUSDCost()"/></div>
+        <div class="pf-field">
+          <label>RATIO <span id="pfRatioSource" style="color:var(--green);font-size:9px;"></span></label>
+          <input id="pfRatio" type="number" placeholder="ej: 20" min="0.001" step="any"/>
+        </div>
+        <div class="pf-field" id="pfPriceField">
+          <label style="display:flex;align-items:center;justify-content:space-between;">
+            <span id="pfPriceLabel">PRECIO ARS/CEDEAR</span>
+            <span onclick="togglePriceCurrency()" style="cursor:pointer;color:var(--blue);font-size:10px;letter-spacing:.04em;" id="pfPriceToggle">→ ingresar en USD</span>
+          </label>
+          <input id="pfCostARS" type="number" placeholder="ej: 20509" min="0" step="any" oninput="updateUSDCost()"/>
+        </div>
+        <div class="pf-field" id="pfCCLField">
+          <label>CCL (ARS/USD)</label>
+          <input id="pfCCL" type="number" placeholder="ej: 1250" min="0" step="any" oninput="updateUSDCost()"/>
+        </div>
       </div>
       <div style="background:var(--bg3);border-radius:3px;padding:10px 14px;border:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center;">
         <span style="font-size:11px;color:var(--text3);">COSTO PROMEDIO EN USD</span>
@@ -1587,6 +1599,76 @@ let pfCharts={pie:null,line:null};
 function savePf(){localStorage.setItem('pf_positions',JSON.stringify(pfPositions));}
 
 // ── PORTFOLIO MODAL ──
+// CEDEAR ratios — CEDEARs per 1 NYSE/ADR share
+const CEDEAR_RATIOS={
+  AAPL:10,MSFT:10,GOOGL:1,GOOG:1,AMZN:6,META:2,NVDA:10,
+  TSLA:9,NFLX:4,PYPL:9,MELI:20,NU:25,JD:8,BABA:5,
+  SHOP:11,COIN:4,SQ:9,UBER:15,AMD:8,INTC:10,TSM:6,
+  V:5,MA:4,JPM:3,BAC:10,BRKB:3,
+  PFE:20,UNH:1,NKE:10,KHC:20,
+  XOM:4,PBR:5,YPF:25,VIST:25,
+  RACE:5,NIO:25,HOOD:25,GLOB:5,ADBE:2,
+};
+
+let pfPriceInUSD=false;
+
+function pfSwitchTab(tab){
+  const isImg=tab==='img';
+  document.getElementById('pfTab-img').style.color=isImg?'var(--green)':'var(--text3)';
+  document.getElementById('pfTab-img').style.borderBottomColor=isImg?'var(--green)':'transparent';
+  document.getElementById('pfTab-manual').style.color=!isImg?'var(--green)':'var(--text3)';
+  document.getElementById('pfTab-manual').style.borderBottomColor=!isImg?'var(--green)':'transparent';
+  document.getElementById('pfImg-section').style.display=isImg?'flex':'none';
+  document.getElementById('pfManual-section').style.display=!isImg?'flex':'none';
+  if(!isImg){
+    document.getElementById('pfResultForm').style.display='flex';
+    document.getElementById('pfSaveBtn').style.display='block';
+  }
+}
+
+function autoFillRatio(){
+  const ticker=document.getElementById('pfTicker').value.trim().toUpperCase();
+  const ratio=CEDEAR_RATIOS[ticker];
+  if(ratio){
+    document.getElementById('pfRatio').value=ratio;
+    document.getElementById('pfRatioSource').textContent='✓ autocompletado';
+  }else{
+    document.getElementById('pfRatioSource').textContent='';
+  }
+}
+
+function togglePriceCurrency(){
+  pfPriceInUSD=!pfPriceInUSD;
+  const lbl=document.getElementById('pfPriceLabel');
+  const tog=document.getElementById('pfPriceToggle');
+  const cclField=document.getElementById('pfCCLField');
+  const inp=document.getElementById('pfCostARS');
+  if(pfPriceInUSD){
+    lbl.textContent='PRECIO USD/CEDEAR';
+    tog.textContent='→ ingresar en ARS';
+    inp.placeholder='ej: 14.50';
+    cclField.style.display='none';
+    inp.oninput=updateUSDCostDirect;
+  }else{
+    lbl.textContent='PRECIO ARS/CEDEAR';
+    tog.textContent='→ ingresar en USD';
+    inp.placeholder='ej: 20509';
+    cclField.style.display='';
+    inp.oninput=updateUSDCost;
+  }
+  document.getElementById('pfCostARS').value='';
+  document.getElementById('pfCostUSDDisplay').textContent='—';
+}
+
+function updateUSDCostDirect(){
+  const usd=parseFloat(document.getElementById('pfCostARS').value);
+  if(!isNaN(usd)&&usd>0){
+    document.getElementById('pfCost').value=usd;
+    document.getElementById('pfCostUSDDisplay').textContent='$'+usd.toFixed(4)+' USD';
+  }else{
+    document.getElementById('pfCostUSDDisplay').textContent='—';
+  }
+}
 function pfSwitchTab(tab){
   const isImg=tab==='img';
   document.getElementById('pfTab-img').style.color=isImg?'var(--green)':'var(--text3)';
@@ -1609,6 +1691,12 @@ function openPfModal(){
   document.getElementById('pfCCL').value='';
   document.getElementById('pfCost').value='';
   document.getElementById('pfDate').value=new Date().toISOString().slice(0,10);
+  pfPriceInUSD=false;
+  document.getElementById('pfCCLField').style.display='';
+  document.getElementById('pfPriceLabel').textContent='PRECIO ARS/CEDEAR';
+  document.getElementById('pfPriceToggle').textContent='→ ingresar en USD';
+  document.getElementById('pfCostARS').placeholder='ej: 20509';
+  document.getElementById('pfRatioSource').textContent='';
   document.getElementById('pfResultForm').style.display='none';
   document.getElementById('pfSaveBtn').style.display='none';
   document.getElementById('pfImgPreview').style.display='none';
@@ -1694,7 +1782,7 @@ Si algún dato no está disponible, ponelo como null.`}
       const parsed=JSON.parse(clean);
 
       // Fill form
-      if(parsed.ticker)document.getElementById('pfTicker').value=parsed.ticker.toUpperCase();
+      if(parsed.ticker){document.getElementById('pfTicker').value=parsed.ticker.toUpperCase();autoFillRatio();}
       if(parsed.cedears)document.getElementById('pfCedears').value=parsed.cedears;
       if(parsed.fecha)document.getElementById('pfDate').value=parsed.fecha;
 
