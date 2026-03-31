@@ -168,6 +168,45 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 #emptyState{text-align:center;padding:60px 20px;color:var(--text3);font-size:12px;line-height:2.4;}
 #emptyState a{color:var(--green);}
 #emptyState strong{color:var(--green);}
+
+/* TABS */
+#tabbar{display:flex;align-items:center;gap:0;border-bottom:2px solid var(--border2);background:var(--bg);flex-shrink:0;}
+.tab{padding:10px 22px;font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s;}
+.tab:hover{color:var(--text2);}
+.tab.active{color:var(--green);border-bottom-color:var(--green);}
+
+/* PORTFOLIO */
+#portfolioView{display:none;flex:1;overflow-y:auto;padding:24px 32px;}
+#portfolioView.active{display:block;}
+.pf-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;}
+.pf-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:24px;}
+.pf-card{background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:12px 16px;}
+.pf-card-label{font-size:10px;color:var(--text3);letter-spacing:.1em;font-weight:700;margin-bottom:6px;}
+.pf-card-val{font-size:18px;font-weight:700;color:#fff;}
+.pf-card-val.up{color:var(--green);}.pf-card-val.down{color:var(--red);}
+.pf-table{width:100%;border-collapse:collapse;margin-bottom:28px;}
+.pf-table th{padding:7px 10px;text-align:right;font-size:10px;font-weight:700;color:var(--text3);border-bottom:2px solid var(--border2);letter-spacing:.08em;white-space:nowrap;}
+.pf-table th:first-child{text-align:left;}
+.pf-table td{padding:8px 10px;text-align:right;font-size:12px;color:var(--text2);border-bottom:1px solid var(--border);white-space:nowrap;}
+.pf-table td:first-child{text-align:left;}
+.pf-table tr:hover td{background:var(--bg3);}
+.pf-charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
+.pf-chart-box{background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:14px;}
+.pf-period{padding:3px 8px;font-size:10px;}
+.pf-period.active{color:var(--green);border-color:var(--green);}
+
+
+/* ADD POSITION MODAL */
+#pfModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:100;align-items:center;justify-content:center;}
+#pfModal.open{display:flex;}
+#pfModalBox{background:var(--bg2);border:1px solid var(--border2);border-radius:3px;width:420px;max-width:95vw;}
+#pfModalBox h2{font-size:13px;font-weight:700;padding:14px 20px;border-bottom:1px solid var(--border2);color:var(--green);letter-spacing:.08em;}
+.pf-form{padding:16px 20px;display:flex;flex-direction:column;gap:12px;}
+.pf-field{display:flex;flex-direction:column;gap:4px;}
+.pf-field label{font-size:10px;color:var(--text3);letter-spacing:.08em;font-weight:700;}
+.pf-field input{background:var(--bg3);border:1px solid var(--border2);color:#fff;padding:7px 10px;border-radius:3px;font-family:var(--mono);font-size:12px;outline:none;}
+.pf-field input:focus{border-color:var(--green);}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 </head>
@@ -189,6 +228,11 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
     <div id="statusDot"></div>
     <span id="statusMsg" style="font-size:11px;color:var(--text3);"></span>
   </div>
+</div>
+
+<div id="tabbar">
+  <div class="tab active" id="tab-dashboard" onclick="switchTab('dashboard')">DASHBOARD</div>
+  <div class="tab" id="tab-portfolio" onclick="switchTab('portfolio')">PORTFOLIO</div>
 </div>
 
 <div id="filterbar">
@@ -305,6 +349,68 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
     <div class="mfoot">
       <button class="btn" onclick="closeEditor()">CANCELAR</button>
       <button class="btn primary" onclick="saveEditor()">GUARDAR</button>
+    </div>
+  </div>
+</div>
+
+<div id="portfolioView">
+  <div class="pf-toolbar">
+    <button class="btn primary" onclick="openPfModal()">+ AGREGAR POSICIÓN</button>
+    <button class="btn" onclick="exportCSV()">↓ EXPORTAR CSV</button>
+    <label class="btn" style="cursor:pointer;">↑ IMPORTAR CSV<input type="file" accept=".csv" style="display:none;" onchange="importCSV(event)"/></label>
+    <button class="btn" onclick="refreshPortfolio()" style="margin-left:auto;">↻ ACTUALIZAR PRECIOS</button>
+  </div>
+  <div class="pf-summary" id="pfSummary"></div>
+  <div id="pfChartsWrap" style="display:none;">
+    <div style="display:flex;gap:16px;margin-bottom:16px;align-items:flex-start;">
+      <div class="pf-chart-box" style="flex:1;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <div class="pf-chart-title" style="margin:0;">EVOLUCIÓN DEL PORTFOLIO</div>
+          <div style="display:flex;gap:4px;margin-left:auto;">
+            <button class="btn pf-period active" data-p="1M" onclick="setPeriod('1M')">1M</button>
+            <button class="btn pf-period" data-p="6M" onclick="setPeriod('6M')">6M</button>
+            <button class="btn pf-period" data-p="1Y" onclick="setPeriod('1Y')">1Y</button>
+            <button class="btn pf-period" data-p="All" onclick="setPeriod('All')">ALL</button>
+          </div>
+        </div>
+        <div style="height:240px;position:relative;"><canvas id="pfLineChart"></canvas></div>
+      </div>
+      <div class="pf-chart-box" style="width:260px;flex-shrink:0;">
+        <div class="pf-chart-title">POR TICKER</div>
+        <div style="height:240px;position:relative;"><canvas id="pfPieChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <table class="pf-table" id="pfTable">
+    <thead><tr>
+      <th>TICKER</th>
+      <th>CEDEARs</th>
+      <th>RATIO</th>
+      <th>SHARES</th>
+      <th>COSTO PROM</th>
+      <th>PRECIO ACT</th>
+      <th>VALOR</th>
+      <th>P&L $</th>
+      <th>P&L %</th>
+      <th></th>
+    </tr></thead>
+    <tbody id="pfTbody"><tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr></tbody>
+  </table>
+</div>
+
+<div id="pfModal">
+  <div id="pfModalBox">
+    <h2>// AGREGAR POSICIÓN</h2>
+    <div class="pf-form">
+      <div class="pf-field"><label>TICKER</label><input id="pfTicker" placeholder="ej: MELI" style="text-transform:uppercase;"/></div>
+      <div class="pf-field"><label>CANTIDAD DE CEDEARs</label><input id="pfCedears" type="number" placeholder="ej: 100" min="0" step="1"/></div>
+      <div class="pf-field"><label>RATIO (CEDEARs por acción NYSE/ADR)</label><input id="pfRatio" type="number" placeholder="ej: 20" min="0.001" step="any"/></div>
+      <div class="pf-field"><label>PRECIO PROMEDIO DE COMPRA (ARS por CEDEAR)</label><input id="pfCost" type="number" placeholder="ej: 85000" min="0" step="any"/></div>
+      <div class="pf-field"><label>FECHA DE COMPRA</label><input id="pfDate" type="date"/></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn" onclick="closePfModal()">CANCELAR</button>
+      <button class="btn primary" onclick="savePfPosition()">GUARDAR</button>
     </div>
   </div>
 </div>
@@ -1418,6 +1524,300 @@ function setStatus(msg,type=''){
 }
 document.getElementById('tickerTA').value=DEFAULT_TICKERS.join('\n');
 renderTable();
+
+// ── TAB SWITCHING ──
+let currentTab='dashboard';
+function switchTab(tab){
+  currentTab=tab;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  const isDash=tab==='dashboard';
+  document.getElementById('filterbar').style.display=isDash?'flex':'none';
+  document.getElementById('main').style.display=isDash?'flex':'none';
+  document.getElementById('portfolioView').style.display=isDash?'none':'block';
+  if(tab==='portfolio')renderPortfolio();
+}
+
+// ── PORTFOLIO STATE ──
+let pfPositions=JSON.parse(localStorage.getItem('pf_positions')||'[]');
+let pfCharts={pie:null,line:null};
+
+function savePf(){localStorage.setItem('pf_positions',JSON.stringify(pfPositions));}
+
+// ── PORTFOLIO MODAL ──
+function openPfModal(){
+  document.getElementById('pfTicker').value='';
+  document.getElementById('pfCedears').value='';
+  document.getElementById('pfRatio').value='';
+  document.getElementById('pfCost').value='';
+  document.getElementById('pfDate').value=new Date().toISOString().slice(0,10);
+  document.getElementById('pfModal').classList.add('open');
+  document.getElementById('pfTicker').focus();
+}
+function closePfModal(){document.getElementById('pfModal').classList.remove('open');}
+function savePfPosition(){
+  const ticker=document.getElementById('pfTicker').value.trim().toUpperCase();
+  const cedears=parseFloat(document.getElementById('pfCedears').value);
+  const ratio=parseFloat(document.getElementById('pfRatio').value);
+  const cost=parseFloat(document.getElementById('pfCost').value);
+  const date=document.getElementById('pfDate').value;
+  if(!ticker||isNaN(cedears)||isNaN(ratio)||isNaN(cost)||!date)return alert('Completá todos los campos');
+  const shares=+(cedears/ratio).toFixed(6); // equivalent NYSE shares
+  pfPositions.push({ticker,cedears,ratio,shares,cost,date,id:Date.now()});
+  savePf();closePfModal();
+  if(!tickers.includes(ticker)){tickers.push(ticker);}
+  renderPortfolio();
+}
+function deletePfPosition(id){
+  pfPositions=pfPositions.filter(p=>p.id!==id);
+  savePf();renderPortfolio();
+}
+
+// ── CSV EXPORT/IMPORT ──
+function exportCSV(){
+  const rows=[['ticker','cedears','ratio','shares','cost','date'],...pfPositions.map(p=>[p.ticker,p.cedears??'',p.ratio??'',p.shares,p.cost,p.date])];
+  const csv=rows.map(r=>r.join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='portfolio.csv';a.click();
+}
+function importCSV(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const lines=ev.target.result.split('\n').filter(Boolean);
+    const header=lines[0].toLowerCase().split(',');
+    const ti=header.indexOf('ticker'),si=header.indexOf('shares'),ci=header.indexOf('cost'),di=header.indexOf('date');
+    const cdi=header.indexOf('cedears'),ri=header.indexOf('ratio');
+    for(let i=1;i<lines.length;i++){
+      const cols=lines[i].split(',');
+      const ticker=cols[ti]?.trim().toUpperCase();
+      const shares=parseFloat(cols[si]);
+      const cost=parseFloat(cols[ci]);
+      const date=cols[di]?.trim();
+      const cedears=cdi>=0?parseFloat(cols[cdi]):null;
+      const ratio=ri>=0?parseFloat(cols[ri]):null;
+      if(ticker&&!isNaN(shares)&&!isNaN(cost)&&date){
+        pfPositions.push({ticker,cedears:isNaN(cedears)?null:cedears,ratio:isNaN(ratio)?null:ratio,shares,cost,date,id:Date.now()+i});
+        if(!tickers.includes(ticker))tickers.push(ticker);
+      }
+    }
+    savePf();renderPortfolio();
+  };
+  reader.readAsText(file);
+  e.target.value='';
+}
+
+// ── FETCH SPY RETURN SINCE DATE ──
+async function spySinceDate(dateStr){
+  const p1=Math.floor(new Date(dateStr).getTime()/1000);
+  const p2=Math.floor(Date.now()/1000);
+  try{
+    const url=`https://query1.finance.yahoo.com/v8/finance/chart/SPY?interval=1d&period1=${p1}&period2=${p2}`;
+    const data=await proxyFetch(url);
+    const closes=data.chart?.result?.[0]?.indicators?.quote?.[0]?.close||[];
+    const valid=closes.filter(v=>v!==null&&!isNaN(v));
+    if(valid.length<2)return null;
+    return((valid[valid.length-1]/valid[0])-1)*100;
+  }catch(e){return null;}
+}
+
+// ── RENDER PORTFOLIO ──
+async function renderPortfolio(){
+  const tbody=document.getElementById('pfTbody');
+  const summary=document.getElementById('pfSummary');
+  if(!pfPositions.length){
+    tbody.innerHTML='<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr>';
+    summary.innerHTML='';
+    document.getElementById('pfChartsWrap').style.display='none';
+    return;
+  }
+
+  const rows=await Promise.all(pfPositions.map(async p=>{
+    const d=stockData[p.ticker];
+    const price=d?.price??null;
+    const currentVal=price?price*p.shares:null;
+    const costVal=p.cost*p.shares;
+    const plDol=currentVal!==null?currentVal-costVal:null;
+    const plPct=currentVal!==null?((currentVal/costVal)-1)*100:null;
+    return{...p,price,currentVal,costVal,plDol,plPct};
+  }));
+
+  // Summary cards
+  const totalCost=rows.reduce((a,r)=>a+r.costVal,0);
+  const totalVal=rows.reduce((a,r)=>a+(r.currentVal??r.costVal),0);
+  const totalPL=totalVal-totalCost;
+  const totalPLPct=totalCost>0?(totalPL/totalCost)*100:0;
+  const fD=v=>v>=0?'+$'+v.toFixed(2):'-$'+Math.abs(v).toFixed(2);
+  const fM=v=>v>=1e6?'$'+(v/1e6).toFixed(2)+'M':'$'+v.toFixed(2);
+  // Daily P&L
+  const dailyPL=rows.reduce((a,r)=>{
+    const d=stockData[r.ticker];
+    if(!d?.chg||!r.shares)return a;
+    return a+d.chg*r.shares;
+  },0);
+  const dailyPLPct=totalVal>0?(dailyPL/totalVal)*100:0;
+
+  summary.innerHTML=`
+    <div class="pf-card"><div class="pf-card-label">VALOR ACTUAL</div><div class="pf-card-val">${fM(totalVal)}</div></div>
+    <div class="pf-card"><div class="pf-card-label">COSTO TOTAL</div><div class="pf-card-val">${fM(totalCost)}</div></div>
+    <div class="pf-card"><div class="pf-card-label">P&L TOTAL $</div><div class="pf-card-val ${totalPL>=0?'up':'down'}">${fD(totalPL)}</div></div>
+    <div class="pf-card"><div class="pf-card-label">P&L TOTAL %</div><div class="pf-card-val ${totalPLPct>=0?'up':'down'}">${totalPLPct>=0?'+':''}${totalPLPct.toFixed(2)}%</div></div>
+    <div class="pf-card"><div class="pf-card-label">P&L DIARIO</div><div class="pf-card-val ${dailyPL>=0?'up':'down'}">${fD(dailyPL)} <span style="font-size:12px;">(${dailyPLPct>=0?'+':''}${dailyPLPct.toFixed(2)}%)</span></div></div>
+    <div class="pf-card"><div class="pf-card-label">GANANCIAS REALIZADAS</div><div class="pf-card-val" style="color:var(--amber);">—</div></div>`;
+
+  // Table rows
+  tbody.innerHTML=rows.map(r=>`<tr>
+    <td><span class="ts">${r.ticker}</span></td>
+    <td>${r.cedears??'—'}</td>
+    <td style="color:var(--text3);">${r.ratio??'—'}:1</td>
+    <td>${r.shares.toFixed(4)}</td>
+    <td>$${r.cost.toFixed(2)}</td>
+    <td>${r.price?'$'+r.price.toFixed(2):'—'}</td>
+    <td>${r.currentVal?fM(r.currentVal):'—'}</td>
+    <td class="${r.plDol===null?'neu':r.plDol>=0?'up':'down'}">${r.plDol!==null?fD(r.plDol):'—'}</td>
+    <td class="${r.plPct===null?'neu':r.plPct>=0?'up':'down'}">${r.plPct!==null?(r.plPct>=0?'+':'')+r.plPct.toFixed(2)+'%':'—'}</td>
+    <td><button class="btn" onclick="deletePfPosition(${r.id})" style="padding:3px 8px;font-size:10px;color:var(--red);border-color:var(--red);">✕</button></td>
+  </tr>`).join('');
+
+  // Charts
+  document.getElementById('pfChartsWrap').style.display='grid';
+  renderPfCharts(rows);
+}
+
+let pfPeriod='1M';
+let pfHistoryData={dates:[],values:[]};
+function setPeriod(p){
+  pfPeriod=p;
+  document.querySelectorAll('.pf-period').forEach(b=>b.classList.toggle('active',b.dataset.p===p));
+  renderLineChart();
+}
+
+function renderLineChart(){
+  const{dates,values}=pfHistoryData;
+  if(!dates.length)return;
+  const now=Date.now();
+  const cuts={
+    '1M':now-30*24*3600*1000,
+    '6M':now-180*24*3600*1000,
+    '1Y':now-365*24*3600*1000,
+    'All':0
+  };
+  const cut=cuts[pfPeriod]||0;
+  const filtered=dates.map((d,i)=>({d:new Date(d).getTime(),v:values[i]})).filter(x=>x.d>=cut);
+  if(!filtered.length)return;
+  const lbls=filtered.map(x=>new Date(x.d).toLocaleDateString('es-AR',{month:'short',day:'numeric'}));
+  const vals=filtered.map(x=>x.v);
+  const firstVal=vals[0];
+  const isUp=vals[vals.length-1]>=firstVal;
+  const lineColor=isUp?'#00ff88':'#ff3355';
+
+  if(pfCharts.line)pfCharts.line.destroy();
+  const ctx=document.getElementById('pfLineChart')?.getContext('2d');
+  if(!ctx)return;
+  pfCharts.line=new Chart(ctx,{
+    type:'line',
+    data:{labels:lbls,datasets:[{
+      data:vals,borderColor:lineColor,borderWidth:2,pointRadius:0,fill:true,
+      backgroundColor:(c)=>{const g=c.chart.ctx.createLinearGradient(0,0,0,220);g.addColorStop(0,lineColor+'33');g.addColorStop(1,lineColor+'00');return g;},
+      tension:0.3,
+    }]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>'$'+v.raw.toFixed(2)}}},
+      scales:{
+        x:{ticks:{font:{size:9},color:'#686868',maxTicksLimit:8},grid:{color:'rgba(255,255,255,0.04)'}},
+        y:{ticks:{font:{size:9},color:'#686868',callback:v=>'$'+v.toLocaleString()},grid:{color:'rgba(255,255,255,0.04)'},position:'right'},
+      }
+    }
+  });
+}
+
+async function buildPortfolioHistory(rows){
+  if(!rows.length)return;
+  // Find earliest buy date
+  const earliest=rows.reduce((a,r)=>r.date<a?r.date:a,rows[0].date);
+  const p1=Math.floor(new Date(earliest).getTime()/1000);
+  const p2=Math.floor(Date.now()/1000);
+
+  // Fetch daily prices for each ticker
+  const priceMap={};
+  await Promise.all(rows.map(async r=>{
+    try{
+      const url=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(r.ticker)}?interval=1d&period1=${p1}&period2=${p2}&includePrePost=false`;
+      const data=await proxyFetch(url);
+      const ts=data.chart?.result?.[0]?.timestamp||[];
+      const cl=data.chart?.result?.[0]?.indicators?.quote?.[0]?.close||[];
+      priceMap[r.ticker]={ts,cl};
+    }catch(e){}
+  }));
+
+  // Build common date range (all trading days)
+  const allTs=new Set();
+  Object.values(priceMap).forEach(({ts})=>ts.forEach(t=>allTs.add(t)));
+  const sortedTs=[...allTs].sort((a,b)=>a-b);
+
+  // For each date, compute portfolio value (only positions active on that date)
+  const dates=[],values=[];
+  for(const ts of sortedTs){
+    const date=new Date(ts*1000).toISOString().slice(0,10);
+    let val=0;
+    for(const r of rows){
+      if(date<r.date)continue; // position not yet opened
+      const pm=priceMap[r.ticker];
+      if(!pm)continue;
+      // find closest price on or before this ts
+      let price=null;
+      for(let i=pm.ts.length-1;i>=0;i--){
+        if(pm.ts[i]<=ts&&pm.cl[i]!==null){price=pm.cl[i];break;}
+      }
+      if(price)val+=price*r.shares;
+    }
+    if(val>0){dates.push(date);values.push(+val.toFixed(2));}
+  }
+  pfHistoryData={dates,values};
+  renderLineChart();
+}
+
+function renderPfCharts(rows){
+  document.getElementById('pfChartsWrap').style.display='block';
+
+  // Pie by ticker
+  if(pfCharts.pie)pfCharts.pie.destroy();
+  const pieCtx=document.getElementById('pfPieChart')?.getContext('2d');
+  const colors=['#00ff88','#33bbff','#ffbb00','#ff3355','#aa88ff','#ff8833','#55ddcc','#ff55aa','#aaccff','#ccff55'];
+  if(pieCtx){
+    pfCharts.pie=new Chart(pieCtx,{
+      type:'doughnut',
+      data:{
+        labels:rows.map(r=>r.ticker),
+        datasets:[{data:rows.map(r=>r.currentVal??r.costVal),backgroundColor:colors.slice(0,rows.length),borderWidth:0}]
+      },
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:true,position:'bottom',labels:{font:{size:10},color:'#b0b0b0',boxWidth:10,padding:5}}}}
+    });
+  }
+
+  // Build evolution history async
+  buildPortfolioHistory(rows);
+}
+
+async function refreshPortfolio(){
+  setStatus('actualizando precios...','loading');
+  const missing=pfPositions.map(p=>p.ticker).filter(t=>!stockData[t]?.loaded);
+  await withLimit(missing.map(ticker=>async()=>{
+    try{
+      const chart=await yahooFetch(ticker);
+      const meta=chart.meta||{};
+      const price=meta.regularMarketPrice??null;
+      if(!stockData[ticker])stockData[ticker]={ticker,loaded:true};
+      stockData[ticker].price=price;
+    }catch(e){}
+  }),3);
+  setStatus('ok','ok');
+  renderPortfolio();
+}
 </script>
 </body>
 </html>
