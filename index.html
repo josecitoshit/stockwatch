@@ -176,7 +176,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 .tab.active{color:var(--green);border-bottom-color:var(--green);}
 
 /* PORTFOLIO */
-#portfolioView{display:none;flex:1;overflow-y:auto;padding:24px 32px;}
+#portfolioView{display:none;position:fixed;top:108px;left:0;right:0;bottom:0;overflow-y:auto;padding:24px 32px;background:var(--bg);z-index:5;}
 #portfolioView.active{display:block;}
 .pf-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;}
 .pf-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:24px;}
