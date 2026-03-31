@@ -340,7 +340,12 @@ AAPL
 TSM
 PBR
 YPF
-XOM`.split('\n').map(t=>t.trim()).filter(Boolean).slice(0,100);
+XOM
+NFLX
+NKE
+NIO
+KHC
+BRKB`.split('\n').map(t=>t.trim()).filter(Boolean).slice(0,100);
 
 let tickers=[...DEFAULT_TICKERS],stockData={},loading=false,selectedTicker=null;
 let sortKey='chgPct',sortDir='desc';
@@ -1139,13 +1144,14 @@ const signCls=v=>v===null?'neu':parseFloat(v)>0?'up':parseFloat(v)<0?'down':'neu
 // Sector map
 const SECTORS={
   'Microchips':    ['NVDA','AMD','INTC','TSM'],
-  'Tecnología':    ['MSFT','AAPL','GOOG','ADBE','META','GLOB'],
+  'Tecnología':    ['MSFT','AAPL','GOOG','ADBE','META','GLOB','NFLX'],
   'E-commerce':    ['AMZN','MELI','SHOP','JD','BABA'],
   'Fintech/Pagos': ['PYPL','SQ','COIN','V','MA','NU','HOOD'],
-  'Movilidad':     ['UBER','TSLA','RACE'],
+  'Movilidad':     ['UBER','TSLA','RACE','NIO'],
   'Salud':         ['UNH','PFE'],
-  'Bancos':        ['JPM','BAC'],
+  'Bancos':        ['JPM','BAC','BRKB'],
   'Petroleras':    ['VIST','PBR','YPF','XOM'],
+  'Consumo':       ['NKE','KHC'],
   'Otros':         [],
 };
 function getSector(ticker){
