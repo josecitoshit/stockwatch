@@ -916,7 +916,7 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding){
       <div class="chart-box"><div class="chart-box-title">Precio · EPS · Shares Outstanding</div><div style="height:220px;"><canvas id="fsCh3"></canvas></div></div>
       <div class="chart-box"><div class="chart-box-title">Precio · Assets · Liabilities · Equity · Debt/Equity</div><div style="height:220px;"><canvas id="fsCh4"></canvas></div></div>
       <div class="chart-box"><div class="chart-box-title">Precio · Gross Margin · Operating Margin · Net Margin</div><div style="height:220px;"><canvas id="fsCh5"></canvas></div></div>
-      <div class="chart-box"><div class="chart-box-title">Precio · Net Cash Flow · Free Cash Flow</div><div style="height:220px;"><canvas id="fsCh6"></canvas></div></div>
+      <div class="chart-box"><div class="chart-box-title">Precio · Net Cash Flow · FCF per Share</div><div style="height:220px;"><canvas id="fsCh6"></canvas></div></div>
       `}
     </div>`;
 
@@ -960,16 +960,16 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding){
       {label:'Net Margin %',data:nm,type:'line',borderColor:'#ff3355',borderWidth:2,pointRadius:3,borderDash:[4,3],fill:false},
     ],[],null,v=>v?.toFixed(1)+'%');
 
-    // Chart 6: Net Cash Flow bars right, FCF Yield line left, Price hidden
-    const fcfYieldQ=fcfQ.map((v,i)=>{
-      const mktCap=priceAtQ[i]&&shares[i]?priceAtQ[i]*shares[i]:null;
-      return(v!==null&&mktCap&&mktCap>0)?+(v/mktCap*100).toFixed(2):null;
+    // Chart 6: Net Cash Flow bars right, FCF per Share line left, Price hidden
+    const fcfPerShare=fcfQ.map((v,i)=>{
+      const sh=sharesInterp[i];
+      return(v!==null&&sh&&sh>0)?+(v/sh).toFixed(2):null;
     });
     mkDual('fsCh6',qLbls,priceAtQ,[
-      {label:'FCF Yield %',data:fcfYieldQ,type:'line',borderColor:'#00ff88',borderWidth:2,pointRadius:3,fill:false},
+      {label:'FCF/Share',data:fcfPerShare,type:'line',borderColor:'#00ff88',borderWidth:2,pointRadius:3,fill:false},
     ],[
       {label:'Net Cash Flow',data:ocf,type:'bar',backgroundColor:ocf.map(v=>v===null?'transparent':v>=0?'rgba(51,187,255,0.35)':'rgba(255,51,85,0.35)'),borderRadius:2},
-    ],fmtBig,v=>v?.toFixed(1)+'%');
+    ],fmtBig,v=>'$'+v?.toFixed(2));
   }
 } // cached S&P500 return over last 20 weeks
 let spyReturn20W=null; // cached S&P500 return over last 20 weeks
