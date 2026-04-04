@@ -249,6 +249,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
     <option value="rsiW">RSI</option>
     <option value="distHigh52">Dist. Máx 52s</option>
     <option value="distLow52">Dist. Mín 52s</option>
+    <option value="sma200WDev">vs SMA200W %</option>
     <option value="vsSP500">vs S&P500 20W</option>
     <option value="sma20WDev">vs SMA20W %</option>
     <option value="pe">P/E</option>
@@ -289,6 +290,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
           <th onclick="sortBy('chgPct')" id="th-chgPct">CHG %</th>
           <th onclick="sortBy('rsiW')" id="th-rsiW" class="th-sep">RSI</th>
           <th onclick="sortBy('vsSP500')" id="th-vsSP500">vs SP500 20W</th>
+          <th onclick="sortBy('sma200WDev')" id="th-sma200WDev">vs SMA200W</th>
           <th onclick="sortBy('sma20WDev')" id="th-sma20WDev">vs SMA20W</th>
           <th onclick="sortBy('distHigh52')" id="th-distHigh52">↓ MÁX52</th>
           <th onclick="sortBy('distLow52')" id="th-distLow52">↑ MÍN52</th>
@@ -1259,10 +1261,13 @@ async function startLoad(){
       const wc=wk.c;
       const ema20WA=calcEMA(wc,20);
       const sma20WA=calcSMA(wc,20);
+      const sma200WA=calcSMA(wc,200);
       const rsiWA=wc.length>15?calcRSI(wc):[];
       const macdWO=wc.length>30?calcMACD(wc):{macd:[],signal:[],hist:[]};
       const sma20W=last(sma20WA);
+      const sma200W=last(sma200WA);
       const sma20WDev=(price&&sma20W)?((price/sma20W)-1)*100:null;
+      const sma200WDev=(price&&sma200W)?((price/sma200W)-1)*100:null;
       // vs S&P500 last 20 weeks
       const spy=await fetchSPY();
       const ticker20WReturn=wc.length>=21?((wc[wc.length-1]/wc[wc.length-21])-1)*100:null;
@@ -1283,7 +1288,7 @@ async function startLoad(){
 
       stockData[ticker]={
         ticker,price,chg,chgPct,high52,low52,distHigh52,distLow52,
-        sma20W,sma20WDev,vsSP500,
+        sma20W,sma20WDev,sma200W,sma200WDev,vsSP500,
         pe,pb,roe,roa,fcfYield,divYield,eps,marketCap,
         rsiW:last(rsiWA),macdW:last(macdWO.macd),macdSigW:last(macdWO.signal),
         wCloses:wc,wTimestamps:wk.t,sharesOutstanding,
@@ -1390,7 +1395,7 @@ function renderTable(){
   const totalRows=rows.length;
   document.getElementById('countBadge').textContent=totalRows+' tickers';
   const tbody=document.getElementById('tbody');tbody.innerHTML='';
-  const NCOLS=15; // number of columns after ticker
+  const NCOLS=16; // number of columns after ticker
   const SK='<td><span class="skel" style="width:38px;height:10px;">&nbsp;</span></td>';
 
   for(const sector of sectorOrder){
@@ -1416,6 +1421,7 @@ function renderTable(){
           <td class="${signCls(d.chgPct)}">${d.chgPct!=null?(d.chgPct>=0?'+':'')+d.chgPct.toFixed(2)+'%':'—'}</td>
           <td class="td-sep ${rsiCls}" style="font-weight:700;">${d.rsiW!=null?d.rsiW.toFixed(1):'—'}</td>
           <td class="${signCls(d.vsSP500)}">${fPct(d.vsSP500)}</td>
+          <td class="${signCls(d.sma200WDev)}">${fPct(d.sma200WDev)}</td>
           <td class="${signCls(d.sma20WDev)}">${fPct(d.sma20WDev)}</td>
           <td class="${signCls(d.distHigh52)}">${d.distHigh52!=null?d.distHigh52.toFixed(1)+'%':'—'}</td>
           <td class="${signCls(d.distLow52)}">${d.distLow52!=null?'+'+d.distLow52.toFixed(1)+'%':'—'}</td>
@@ -1707,10 +1713,21 @@ function pfSwitchTab(tab){
   document.getElementById('pfTab-manual').style.color=!isImg?'var(--green)':'var(--text3)';
   document.getElementById('pfTab-manual').style.borderBottomColor=!isImg?'var(--green)':'transparent';
   document.getElementById('pfImg-section').style.display=isImg?'flex':'none';
-  document.getElementById('pfManual-section').style.display='none'; // fields are in pfResultForm
-  // show result form immediately in manual mode
-  document.getElementById('pfResultForm').style.display=!isImg?'flex':'none';
-  document.getElementById('pfSaveBtn').style.display=!isImg?'block':'none';
+  const rf=document.getElementById('pfResultForm');
+  const sb=document.getElementById('pfSaveBtn');
+  if(!isImg){
+    // Manual mode — show form immediately, hide "datos extraídos" label
+    rf.style.display='flex';
+    rf.style.borderTop='none';
+    rf.style.paddingTop='0';
+    rf.querySelector('div[style*="DATOS EXTRAÍDOS"]') && (rf.querySelector('div[style*="DATOS EXTRAÍDOS"]').style.display='none');
+    sb.style.display='block';
+  }else{
+    rf.style.display='none';
+    rf.style.borderTop='1px solid var(--border2)';
+    rf.style.paddingTop='14px';
+    sb.style.display='none';
+  }
 }
 
 function autoFillRatio(){
@@ -2392,24 +2409,24 @@ async function buildPortfolioHistory(groupedRows){
 function renderPfCharts(rows){
   document.getElementById('pfChartsWrap').style.display='block';
 
-  // Pie by ticker
-  if(pfCharts.pie)pfCharts.pie.destroy();
-  const pieCtx=document.getElementById('pfPieChart')?.getContext('2d');
-  const colors=['#00ff88','#33bbff','#ffbb00','#ff3355','#aa88ff','#ff8833','#55ddcc','#ff55aa','#aaccff','#ccff55'];
-  if(pieCtx){
-    pfCharts.pie=new Chart(pieCtx,{
-      type:'doughnut',
-      data:{
-        labels:rows.map(r=>r.ticker),
-        datasets:[{data:rows.map(r=>r.currentVal??r.costVal),backgroundColor:colors.slice(0,rows.length),borderWidth:0}]
-      },
-      options:{responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:true,position:'bottom',labels:{font:{size:10},color:'#b0b0b0',boxWidth:10,padding:5}}}}
-    });
-  }
-
-  // Build evolution history async
-  buildPortfolioHistory(rows);
+  // Pie by ticker — use setTimeout to ensure canvas is visible before rendering
+  if(pfCharts.pie){pfCharts.pie.destroy();pfCharts.pie=null;}
+  setTimeout(()=>{
+    const pieCtx=document.getElementById('pfPieChart')?.getContext('2d');
+    const colors=['#00ff88','#33bbff','#ffbb00','#ff3355','#aa88ff','#ff8833','#55ddcc','#ff55aa','#aaccff','#ccff55'];
+    if(pieCtx){
+      pfCharts.pie=new Chart(pieCtx,{
+        type:'doughnut',
+        data:{
+          labels:groupedRows.map(r=>r.ticker),
+          datasets:[{data:groupedRows.map(r=>+(r.currentVal??r.costVal).toFixed(2)),backgroundColor:colors.slice(0,groupedRows.length),borderWidth:0}]
+        },
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:true,position:'bottom',labels:{font:{size:10},color:'#b0b0b0',boxWidth:10,padding:5}}}}
+      });
+    }
+    buildPortfolioHistory(groupedRows);
+  },50);
 }
 
 async function refreshPortfolio(){
