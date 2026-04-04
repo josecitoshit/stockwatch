@@ -431,7 +431,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
       <div style="font-size:10px;color:var(--text3);letter-spacing:.08em;margin-bottom:4px;">DATOS EXTRAÍDOS — REVISÁ Y CONFIRMÁ</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div class="pf-field"><label>TICKER</label><input id="pfTicker" placeholder="ej: MELI" style="text-transform:uppercase;" oninput="autoFillRatio()"/></div>
-        <div class="pf-field"><label>FECHA</label><input id="pfDate" type="date"/></div>
+        <div class="pf-field"><label>FECHA</label><input id="pfDate" type="date" oninput="autoFetchCCL()"/></div>
         <div class="pf-field"><label>CEDEARs</label><input id="pfCedears" type="number" placeholder="ej: 100" min="0" step="1"/></div>
         <div class="pf-field">
           <label>RATIO <span id="pfRatioSource" style="color:var(--green);font-size:9px;"></span></label>
@@ -446,7 +446,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
           <input id="pfCostARS" type="number" placeholder="ej: 20509" min="0" step="any" oninput="updateUSDCost()"/>
         </div>
         <div class="pf-field" id="pfCCLField">
-          <label>CCL (ARS/USD)</label>
+          <label>CCL (ARS/USD) <span id="pfCCLStatus" style="color:var(--text3);font-size:9px;"></span></label>
           <input id="pfCCL" type="number" placeholder="ej: 1250" min="0" step="any" oninput="updateUSDCost()"/>
         </div>
       </div>
@@ -1759,19 +1759,57 @@ function updateUSDCost(){
   }
 }
 
-async function fetchCCL(){
-  // Try to get CCL from a public source
-  try{
-    const data=await proxyFetch('https://api.bluelytics.com.ar/v2/latest');
-    return data?.oficial_euro?.value_sell??data?.blue?.value_sell??null;
-  }catch(e){}
-  try{
-    // Fallback: use GD30 ratio as CCL proxy via Yahoo
-    const url='https://query1.finance.yahoo.com/v8/finance/chart/GD30.BA?interval=1d&range=1d';
-    const data=await proxyFetch(url);
-    // Not perfect but a reasonable fallback
+async function fetchCCL(dateStr){
+  const tryDate=async(d)=>{
+    try{
+      const[y,m,dd]=d.split('-');
+      const data=await proxyFetch(`https://dolarapi.com/v1/historico/dolares/contadoconliqui/${y}/${m}/${dd}`);
+      if(Array.isArray(data)&&data.length){
+        const venta=data[data.length-1].venta??data[data.length-1].compra;
+        if(venta)return parseFloat(venta);
+      }
+      if(data?.venta)return parseFloat(data.venta);
+    }catch(e){}
     return null;
-  }catch(e){return null;}
+  };
+
+  if(dateStr){
+    // Try the exact date first, then walk back up to 7 days to find nearest business day
+    const base=new Date(dateStr+'T12:00:00Z');
+    for(let i=0;i<=7;i++){
+      const d=new Date(base);
+      d.setUTCDate(base.getUTCDate()-i);
+      const str=d.toISOString().slice(0,10);
+      const val=await tryDate(str);
+      if(val)return val;
+    }
+  }
+
+  // Last resort: today's live rate
+  try{
+    const data=await proxyFetch('https://dolarapi.com/v1/dolares/contadoconliqui');
+    if(data?.venta)return parseFloat(data.venta);
+  }catch(e){}
+  return null;
+}
+
+async function autoFetchCCL(){
+  const dateStr=document.getElementById('pfDate').value;
+  if(!dateStr||pfPriceInUSD)return;
+  const status=document.getElementById('pfCCLStatus');
+  const cclInput=document.getElementById('pfCCL');
+  status.textContent='cargando...';
+  status.style.color='var(--amber)';
+  const ccl=await fetchCCL(dateStr);
+  if(ccl){
+    cclInput.value=ccl.toFixed(2);
+    status.textContent='✓ autocompletado';
+    status.style.color='var(--green)';
+    updateUSDCost();
+  }else{
+    status.textContent='sin datos';
+    status.style.color='var(--red)';
+  }
 }
 
 async function handlePfImage(event){
@@ -1788,7 +1826,7 @@ async function handlePfImage(event){
     document.getElementById('pfParseMsg').style.color='var(--amber)';
 
     // Fetch CCL in parallel
-    const cclPromise=fetchCCL();
+    const cclPromise=null; // CCL now fetched after date is extracted
 
     try{
       // Call Claude API with vision
@@ -1826,9 +1864,13 @@ Si algún dato no está disponible, ponelo como null.`}
       if(parsed.cedears)document.getElementById('pfCedears').value=parsed.cedears;
       if(parsed.fecha)document.getElementById('pfDate').value=parsed.fecha;
 
-      // Handle price
-      const ccl=await cclPromise;
-      if(ccl)document.getElementById('pfCCL').value=ccl.toFixed(2);
+      // Fetch CCL for the date on the receipt
+      const ccl=await fetchCCL(parsed.fecha||null);
+      if(ccl){
+        document.getElementById('pfCCL').value=ccl.toFixed(2);
+        const st=document.getElementById('pfCCLStatus');
+        if(st){st.textContent='✓ '+(parsed.fecha||'hoy');st.style.color='var(--green)';}
+      }
 
       if(parsed.moneda==='USD'&&parsed.precio_usd){
         // Already in USD — cost is direct
