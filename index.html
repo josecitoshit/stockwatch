@@ -2074,24 +2074,49 @@ async function handleImportFile(event){
 }
 
 async function parseIEB(lines){
-  // IEB format: Operación | Fecha operación | Fecha liquidación | Nro. | Precio | Cantidad | Saldo
-  // Col B = fecha operacion (index 1), Col E = precio ARS (index 4), Col F = cantidad (index 5)
-  // Skip header rows until we find a row starting with COMPRA
-  const sep=lines[0].includes(';')?';':',';
-  importParsedRows=[];
+  // IEB CSV: rows 0-3 are metadata, row 4 is header, row 5+ are data
+  // Columns: Operación(0) | Fecha operación(1) | Fecha liq(2) | Nro(3) | Precio(4) | Cantidad(5) | Saldo(6)
+  // Prices are quoted with internal commas as thousands sep: "5,708.45"
 
-  for(const line of lines){
-    const cols=line.split(sep).map(c=>c.trim().replace(/"/g,'').replace(/\./g,'').replace(/,/g,'.'));
+  // Find header row (contains "Operación")
+  let dataStart=0;
+  for(let i=0;i<lines.length;i++){
+    if(lines[i].toLowerCase().includes('operaci')){dataStart=i+1;break;}
+  }
+
+  const cleanNum=v=>{
+    // Remove quotes and thousands commas: "5,708.45" -> 5708.45
+    return parseFloat(v.replace(/"/g,'').replace(/,/g,'').trim());
+  };
+
+  importParsedRows=[];
+  for(let i=dataStart;i<lines.length;i++){
+    const cols=splitCSVLine(lines[i]);
+    if(!cols||cols.length<6)continue;
     const op=(cols[0]||'').toUpperCase();
     if(!op.startsWith('COMPRA'))continue;
-    const fecha=normalizeDate(cols[1]);
-    const precio=parseFloat(cols[4]);
-    const nominales=parseFloat(cols[5]);
-    if(!fecha||isNaN(precio)||isNaN(nominales)||nominales<=0)continue;
-    importParsedRows.push({fecha:cols[1],fechaNorm:fecha,nominales,precio,moneda:'ARS',ccl:null,precioUSD:null});
+    const fechaRaw=(cols[1]||'').trim();
+    const fechaNorm=normalizeDate(fechaRaw);
+    const precio=cleanNum(cols[4]);
+    const nominales=cleanNum(cols[5]);
+    if(!fechaNorm||isNaN(precio)||isNaN(nominales)||nominales<=0)continue;
+    importParsedRows.push({fecha:fechaRaw,fechaNorm,nominales,precio,moneda:'ARS',ccl:null,precioUSD:null});
   }
 
   await fetchCCLForRows();
+}
+
+function splitCSVLine(line){
+  // Parse CSV line respecting quoted fields with internal commas
+  const result=[];let cur='';let inQ=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(ch==='"'){inQ=!inQ;}
+    else if(ch===','&&!inQ){result.push(cur.trim());cur='';}
+    else{cur+=ch;}
+  }
+  result.push(cur.trim());
+  return result;
 }
 
 async function parseCocos(lines){
@@ -2151,20 +2176,18 @@ async function fetchCCLForRows(){
 }
 
 function normalizeDate(str){
-  // Handle M/D/YYYY or DD/MM/YYYY or YYYY-MM-DD
   if(!str)return null;
   str=str.trim();
   if(/^\d{4}-\d{2}-\d{2}$/.test(str))return str;
   const parts=str.split(/[\/\-\.]/);
   if(parts.length===3){
-    // Detect M/D/YYYY (US format from Excel)
-    if(parseInt(parts[2])>31){
-      const m=parts[0].padStart(2,'0');
-      const d=parts[1].padStart(2,'0');
-      return`${parts[2]}-${m}-${d}`;
-    }
-    // DD/MM/YYYY
-    return`${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+    const p0=parts[0],p1=parts[1],p2=parts[2];
+    // YYYY/MM/DD — year first
+    if(p0.length===4)return`${p0}-${p1.padStart(2,'0')}-${p2.padStart(2,'0')}`;
+    // DD/MM/YYYY — year last (IEB format)
+    if(p2.length===4)return`${p2}-${p1.padStart(2,'0')}-${p0.padStart(2,'0')}`;
+    // M/D/YYYY US Excel format
+    if(parseInt(p2)>31)return`${p2}-${p0.padStart(2,'0')}-${p1.padStart(2,'0')}`;
   }
   return null;
 }
