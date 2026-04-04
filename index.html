@@ -368,6 +368,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
   <div class="pf-toolbar">
     <button class="btn primary" onclick="openPfModal()">+ AGREGAR POSICIÓN</button>
     <button class="btn" onclick="openDivModal()">+ DIVIDENDO</button>
+    <button class="btn" onclick="openSaleModal()" style="color:var(--amber);border-color:var(--amber);">- REGISTRAR VENTA</button>
     <button class="btn" onclick="exportCSV()">↓ EXPORTAR CSV</button>
     <button class="btn" onclick="openImportModal()">↑ IMPORTAR CSV</button>
     <button class="btn" onclick="refreshPortfolio()" style="margin-left:auto;">↻ ACTUALIZAR PRECIOS</button>
@@ -378,6 +379,11 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
       <div class="pf-chart-box" style="flex:1;">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
           <div class="pf-chart-title" style="margin:0;">EVOLUCIÓN DEL PORTFOLIO</div>
+          <div style="display:flex;gap:4px;margin-left:8px;">
+            <button id="pfModeVal" onclick="setPfChartMode('value')" style="padding:3px 8px;font-size:10px;border-radius:3px;border:1px solid var(--green);color:var(--green);background:rgba(0,255,136,0.12);font-family:var(--mono);cursor:pointer;font-weight:700;">VALOR</button>
+            <button id="pfModePL" onclick="setPfChartMode('pl')" style="padding:3px 8px;font-size:10px;border-radius:3px;border:1px solid var(--border2);color:var(--text3);background:transparent;font-family:var(--mono);cursor:pointer;font-weight:700;">P&L %</button>
+            <button id="pfModePLusd" onclick="setPfChartMode('plusd')" style="padding:3px 8px;font-size:10px;border-radius:3px;border:1px solid var(--border2);color:var(--text3);background:transparent;font-family:var(--mono);cursor:pointer;font-weight:700;">P&L $</button>
+          </div>
           <div style="display:flex;gap:4px;margin-left:auto;">
             <button class="btn pf-period active" data-p="1M" onclick="setPeriod('1M')">1M</button>
             <button class="btn pf-period" data-p="6M" onclick="setPeriod('6M')">6M</button>
@@ -549,6 +555,63 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
     <div class="mfoot">
       <button class="btn" onclick="closeDivModal()">CANCELAR</button>
       <button class="btn primary" onclick="saveDividend()">GUARDAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- SALE MODAL -->
+<div id="saleModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:100;align-items:center;justify-content:center;">
+  <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:3px;width:420px;max-width:95vw;">
+    <h2 style="font-size:13px;font-weight:700;padding:14px 20px;border-bottom:1px solid var(--border2);color:var(--amber);letter-spacing:.08em;">// REGISTRAR VENTA</h2>
+    <div class="pf-form">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="pf-field">
+          <label>TICKER</label>
+          <select id="saleTicker" style="background:var(--bg3);border:1px solid var(--border2);color:var(--text1);padding:7px 10px;border-radius:3px;font-family:var(--mono);font-size:12px;width:100%;" onchange="updateSaleAvailable()">
+            <option value="">— elegí un ticker —</option>
+          </select>
+        </div>
+        <div class="pf-field"><label>FECHA DE VENTA</label><input id="saleDate" type="date" oninput="autoFetchSaleCCL()"/></div>
+        <div class="pf-field">
+          <label>CEDEARs A VENDER <span id="saleAvailableHint" style="color:var(--green);font-size:9px;"></span></label>
+          <input id="saleCedears" type="number" placeholder="ej: 10" min="1" step="1" oninput="updateSaleUSD()"/>
+        </div>
+        <div class="pf-field">
+          <label>RATIO</label>
+          <input id="saleRatio" type="number" placeholder="ej: 120" min="0.001" step="any" readonly style="color:var(--text3);"/>
+        </div>
+        <div class="pf-field">
+          <label>PRECIO DE VENTA POR CEDEAR</label>
+          <div class="pf-pills">
+            <button class="pf-pill active" onclick="setSaleCurrency('ARS')">ARS $</button>
+            <button class="pf-pill" onclick="setSaleCurrency('USD')">USD $</button>
+          </div>
+          <input id="salePriceARS" type="number" placeholder="ej: 8500" min="0" step="any" oninput="updateSaleUSD()"/>
+        </div>
+        <div class="pf-field" id="saleCCLField">
+          <label>CCL (ARS/USD) <span id="saleCCLStatus" style="color:var(--text3);font-size:9px;"></span></label>
+          <input id="saleCCL" type="number" placeholder="ej: 1250" min="0" step="any" oninput="updateSaleUSD()"/>
+        </div>
+      </div>
+      <div style="background:var(--bg3);border-radius:3px;padding:10px 14px;border:1px solid var(--border2);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:11px;color:var(--text3);">PRECIO VENTA (USD/acción NYSE)</span>
+          <span id="salePriceUSDDisplay" style="font-size:15px;font-weight:700;color:var(--amber);">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:11px;color:var(--text3);">COSTO PROMEDIO (USD/acción NYSE)</span>
+          <span id="saleCostDisplay" style="font-size:13px;color:var(--text2);">—</span>
+        </div>
+        <div style="border-top:1px solid var(--border2);padding-top:8px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:11px;color:var(--text3);">P&L REALIZADO</span>
+          <span id="salePLDisplay" style="font-size:16px;font-weight:700;">—</span>
+        </div>
+      </div>
+      <div class="pf-field"><label>NOTAS (opcional)</label><input id="saleNotes" placeholder="ej: toma de ganancia parcial"/></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn" onclick="closeSaleModal()">CANCELAR</button>
+      <button class="btn primary" onclick="saveSale()" style="color:var(--amber);border-color:var(--amber);">REGISTRAR VENTA</button>
     </div>
   </div>
 </div>
@@ -1689,7 +1752,165 @@ function setStatus(msg,type=''){
 document.getElementById('tickerTA').value=DEFAULT_TICKERS.join('\n');
 renderTable();
 
-// ── REALIZED GAINS (dividends + sales) ──
+// ── SALE MODAL ──
+let saleCurrency='ARS';
+
+function openSaleModal(){
+  // Populate ticker dropdown from current positions
+  const tks=[...new Set(pfPositions.map(p=>p.ticker))].sort();
+  const sel=document.getElementById('saleTicker');
+  sel.innerHTML='<option value="">— elegí un ticker —</option>'+tks.map(t=>`<option value="${t}">${t}</option>`).join('');
+  document.getElementById('saleDate').value=new Date().toISOString().slice(0,10);
+  document.getElementById('saleCedears').value='';
+  document.getElementById('salePriceARS').value='';
+  document.getElementById('saleCCL').value='';
+  document.getElementById('saleNotes').value='';
+  document.getElementById('salePriceUSDDisplay').textContent='—';
+  document.getElementById('saleCostDisplay').textContent='—';
+  document.getElementById('salePLDisplay').textContent='—';
+  document.getElementById('salePLDisplay').style.color='var(--text2)';
+  document.getElementById('saleCCLStatus').textContent='';
+  document.getElementById('saleAvailableHint').textContent='';
+  saleCurrency='ARS';
+  setSaleCurrency('ARS');
+  document.getElementById('saleModal').style.display='flex';
+}
+function closeSaleModal(){document.getElementById('saleModal').style.display='none';}
+
+function setSaleCurrency(cur){
+  saleCurrency=cur;
+  document.querySelectorAll('#saleModal .pf-pill').forEach(p=>p.classList.toggle('active',p.textContent.startsWith(cur)));
+  document.getElementById('saleCCLField').style.display=cur==='ARS'?'block':'none';
+  document.getElementById('salePriceARS').value='';
+  updateSaleUSD();
+}
+
+async function autoFetchSaleCCL(){
+  if(saleCurrency!=='ARS')return;
+  const dateStr=document.getElementById('saleDate').value;
+  if(!dateStr)return;
+  const st=document.getElementById('saleCCLStatus');
+  st.textContent='cargando...';st.style.color='var(--amber)';
+  const ccl=await fetchCCL(dateStr);
+  if(ccl){
+    document.getElementById('saleCCL').value=ccl.toFixed(2);
+    st.textContent='✓ autocompletado';st.style.color='var(--green)';
+    updateSaleUSD();
+  }else{st.textContent='sin datos';st.style.color='var(--red)';}
+}
+
+function updateSaleAvailable(){
+  const ticker=document.getElementById('saleTicker').value;
+  if(!ticker)return;
+  // sum cedears for this ticker
+  const totalCedears=pfPositions.filter(p=>p.ticker===ticker).reduce((a,p)=>a+(p.cedears||0),0);
+  const ratio=CEDEAR_RATIOS[ticker]||pfPositions.find(p=>p.ticker===ticker)?.ratio||1;
+  document.getElementById('saleRatio').value=ratio;
+  document.getElementById('saleAvailableHint').textContent=`disponibles: ${totalCedears}`;
+  // show avg cost
+  const grouped=pfPositions.filter(p=>p.ticker===ticker);
+  const totalShares=grouped.reduce((a,p)=>a+p.shares,0);
+  const totalCost=grouped.reduce((a,p)=>a+(p.cost*(p.ratio||1)*p.shares),0);
+  const avgCost=totalShares>0?totalCost/totalShares:0;
+  document.getElementById('saleCostDisplay').textContent='$'+avgCost.toFixed(2);
+  updateSaleUSD();
+}
+
+function updateSaleUSD(){
+  const ticker=document.getElementById('saleTicker').value;
+  const cedears=parseFloat(document.getElementById('saleCedears').value);
+  const ratio=parseFloat(document.getElementById('saleRatio').value)||1;
+  const priceRaw=parseFloat(document.getElementById('salePriceARS').value);
+  const ccl=parseFloat(document.getElementById('saleCCL').value);
+  if(isNaN(priceRaw)||isNaN(cedears)||cedears<=0){
+    document.getElementById('salePriceUSDDisplay').textContent='—';
+    document.getElementById('salePLDisplay').textContent='—';
+    return;
+  }
+  // price per NYSE share
+  let pricePerShare;
+  if(saleCurrency==='ARS'){
+    if(isNaN(ccl)||ccl<=0){document.getElementById('salePriceUSDDisplay').textContent='—';return;}
+    pricePerShare=(priceRaw/ccl)*ratio;
+  }else{
+    pricePerShare=priceRaw*ratio;
+  }
+  document.getElementById('salePriceUSDDisplay').textContent='$'+pricePerShare.toFixed(2);
+  // P&L
+  const shares=cedears/ratio;
+  const costDisplay=document.getElementById('saleCostDisplay').textContent;
+  const avgCost=parseFloat(costDisplay.replace('$',''));
+  if(!isNaN(avgCost)&&avgCost>0){
+    const pl=(pricePerShare-avgCost)*shares;
+    const plPct=((pricePerShare/avgCost)-1)*100;
+    const el=document.getElementById('salePLDisplay');
+    el.textContent=(pl>=0?'+':'')+'$'+pl.toFixed(2)+' ('+(plPct>=0?'+':'')+plPct.toFixed(1)+'%)';
+    el.style.color=pl>=0?'var(--green)':'var(--red)';
+  }
+}
+
+function saveSale(){
+  const ticker=document.getElementById('saleTicker').value;
+  const date=document.getElementById('saleDate').value;
+  const cedears=parseFloat(document.getElementById('saleCedears').value);
+  const ratio=parseFloat(document.getElementById('saleRatio').value)||1;
+  const priceRaw=parseFloat(document.getElementById('salePriceARS').value);
+  const notes=document.getElementById('saleNotes').value.trim();
+  if(!ticker||!date||isNaN(cedears)||cedears<=0||isNaN(priceRaw)){alert('Completá todos los campos');return;}
+
+  let pricePerCedearUSD;
+  if(saleCurrency==='ARS'){
+    const ccl=parseFloat(document.getElementById('saleCCL').value);
+    if(isNaN(ccl)||ccl<=0){alert('Ingresá el CCL');return;}
+    pricePerCedearUSD=priceRaw/ccl;
+  }else{
+    pricePerCedearUSD=priceRaw;
+  }
+
+  // Compute P&L vs avg cost
+  const shares=cedears/ratio;
+  const pricePerShare=pricePerCedearUSD*ratio;
+  const grouped=pfPositions.filter(p=>p.ticker===ticker);
+  const totalShares=grouped.reduce((a,p)=>a+p.shares,0);
+  const totalCost=grouped.reduce((a,p)=>a+(p.cost*(p.ratio||1)*p.shares),0);
+  const avgCost=totalShares>0?totalCost/totalShares:0;
+  const amtUSD=+(( pricePerShare-avgCost)*shares).toFixed(2);
+
+  // Remove sold cedears from positions (FIFO)
+  let toRemove=cedears;
+  pfPositions=pfPositions.map(p=>{
+    if(p.ticker!==ticker||toRemove<=0)return p;
+    const avail=p.cedears||0;
+    if(avail<=toRemove){toRemove-=avail;return null;}
+    const remaining=avail-toRemove;toRemove=0;
+    return{...p,cedears:remaining,shares:remaining/ratio};
+  }).filter(Boolean);
+
+  realizedEvents.push({id:Date.now(),ticker,date,type:'venta',amtUSD,cedears,pricePerCedearUSD:+pricePerCedearUSD.toFixed(4),notes});
+  savePf();saveRealized();
+  closeSaleModal();
+  renderPortfolio();
+}
+
+// ── P&L CHART MODE ──
+let pfChartMode='value';
+function setPfChartMode(mode){
+  pfChartMode=mode;
+  const modes={
+    value:{id:'pfModeVal',color:'var(--green)',bg:'rgba(0,255,136,0.12)'},
+    pl:   {id:'pfModePL', color:'var(--blue)', bg:'rgba(51,187,255,0.12)'},
+    plusd:{id:'pfModePLusd',color:'var(--amber)',bg:'rgba(255,187,0,0.12)'},
+  };
+  Object.entries(modes).forEach(([m,s])=>{
+    const el=document.getElementById(s.id);
+    if(!el)return;
+    const active=m===mode;
+    el.style.background=active?s.bg:'transparent';
+    el.style.borderColor=active?s.color:'var(--border2)';
+    el.style.color=active?s.color:'var(--text3)';
+  });
+  renderLineChart();
+}
 let realizedEvents=JSON.parse(localStorage.getItem('pf_realized')||'[]');
 function saveRealized(){localStorage.setItem('pf_realized',JSON.stringify(realizedEvents));}
 
@@ -2620,22 +2841,34 @@ function setPeriod(p){
 }
 
 function renderLineChart(){
-  const{dates,values}=pfHistoryData;
+  const{dates,values,costs}=pfHistoryData;
   if(!dates.length)return;
   const now=Date.now();
-  const cuts={
-    '1M':now-30*24*3600*1000,
-    '6M':now-180*24*3600*1000,
-    '1Y':now-365*24*3600*1000,
-    'All':0
-  };
+  const cuts={'1M':now-30*24*3600*1000,'6M':now-180*24*3600*1000,'1Y':now-365*24*3600*1000,'All':0};
   const cut=cuts[pfPeriod]||0;
-  const filtered=dates.map((d,i)=>({d:new Date(d).getTime(),v:values[i]})).filter(x=>x.d>=cut);
+  const filtered=dates.map((d,i)=>({d:new Date(d).getTime(),v:values[i],c:costs?costs[i]:null})).filter(x=>x.d>=cut);
   if(!filtered.length)return;
+
   const lbls=filtered.map(x=>new Date(x.d).toLocaleDateString('es-AR',{month:'short',day:'numeric'}));
-  const vals=filtered.map(x=>x.v);
+  let vals,yLabel,tooltipFmt;
+
+  if(pfChartMode==='pl'&&filtered[0].c){
+    vals=filtered.map(x=>x.c>0?+((x.v-x.c)/x.c*100).toFixed(2):0);
+    yLabel=v=>v.toFixed(1)+'%';
+    tooltipFmt=v=>(v>=0?'+':'')+v.toFixed(2)+'%';
+  }else if(pfChartMode==='plusd'&&filtered[0].c){
+    vals=filtered.map(x=>+(x.v-x.c).toFixed(2));
+    yLabel=v=>(v>=0?'+$':'-$')+Math.abs(v).toLocaleString();
+    tooltipFmt=v=>(v>=0?'+$':'-$')+Math.abs(v).toFixed(2);
+  }else{
+    vals=filtered.map(x=>x.v);
+    yLabel=v=>'$'+v.toLocaleString();
+    tooltipFmt=v=>'$'+v.toFixed(2);
+  }
+
   const firstVal=vals[0];
-  const isUp=vals[vals.length-1]>=firstVal;
+  const lastVal=vals[vals.length-1];
+  const isUp=lastVal>=firstVal;
   const lineColor=isUp?'#00ff88':'#ff3355';
 
   if(pfCharts.line)pfCharts.line.destroy();
@@ -2651,10 +2884,10 @@ function renderLineChart(){
     options:{
       responsive:true,maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>'$'+v.raw.toFixed(2)}}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>tooltipFmt(v.raw)}}},
       scales:{
         x:{ticks:{font:{size:9},color:'#686868',maxTicksLimit:8},grid:{color:'rgba(255,255,255,0.04)'}},
-        y:{ticks:{font:{size:9},color:'#686868',callback:v=>'$'+v.toLocaleString()},grid:{color:'rgba(255,255,255,0.04)'},position:'right'},
+        y:{ticks:{font:{size:9},color:'#686868',callback:yLabel},grid:{color:'rgba(255,255,255,0.04)'},position:'right'},
       }
     }
   });
@@ -2710,10 +2943,10 @@ async function buildPortfolioHistory(groupedRows){
   Object.values(priceMap).forEach(({ts})=>ts.forEach(t=>{if(t)allTs.add(t);}));
   const sortedTs=[...allTs].sort((a,b)=>a-b);
 
-  const dates=[],values=[];
+  const dates=[],values=[],costs=[];
   for(const ts of sortedTs){
     const date=new Date(ts*1000).toISOString().slice(0,10);
-    let val=0;
+    let val=0,cost=0;
     for(const r of groupedRows){
       if(date<r.date)continue;
       const pm=priceMap[r.ticker];
@@ -2722,11 +2955,11 @@ async function buildPortfolioHistory(groupedRows){
       for(let i=pm.ts.length-1;i>=0;i--){
         if(pm.ts[i]<=ts&&pm.cl[i]!==null){price=pm.cl[i];break;}
       }
-      if(price)val+=price*r.shares;
+      if(price){val+=price*r.shares;cost+=r.costVal;}
     }
-    if(val>0){dates.push(date);values.push(+val.toFixed(2));}
+    if(val>0){dates.push(date);values.push(+val.toFixed(2));costs.push(+cost.toFixed(2));}
   }
-  pfHistoryData={dates,values};
+  pfHistoryData={dates,values,costs};
   renderLineChart();
 }
 
