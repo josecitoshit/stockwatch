@@ -367,6 +367,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 <div id="portfolioView">
   <div class="pf-toolbar">
     <button class="btn primary" onclick="openPfModal()">+ AGREGAR POSICIÓN</button>
+    <button class="btn" onclick="openDivModal()">+ DIVIDENDO</button>
     <button class="btn" onclick="exportCSV()">↓ EXPORTAR CSV</button>
     <button class="btn" onclick="openImportModal()">↑ IMPORTAR CSV</button>
     <button class="btn" onclick="refreshPortfolio()" style="margin-left:auto;">↻ ACTUALIZAR PRECIOS</button>
@@ -516,6 +517,62 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
     <div class="mfoot">
       <button class="btn" onclick="closePfModal()">CANCELAR</button>
       <button class="btn primary" id="pfSaveBtn" onclick="savePfPosition()" style="display:none;">GUARDAR POSICIÓN</button>
+    </div>
+  </div>
+</div>
+
+<!-- DIVIDEND MODAL -->
+<div id="divModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:100;align-items:center;justify-content:center;">
+  <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:3px;width:380px;max-width:95vw;">
+    <h2 style="font-size:13px;font-weight:700;padding:14px 20px;border-bottom:1px solid var(--border2);color:var(--green);letter-spacing:.08em;">// REGISTRAR DIVIDENDO</h2>
+    <div class="pf-form">
+      <div class="pf-field"><label>TICKER</label><input id="divTicker" placeholder="ej: AAPL" style="text-transform:uppercase;"/></div>
+      <div class="pf-field"><label>FECHA DE PAGO</label><input id="divDate" type="date" oninput="autoFetchDivCCL()"/></div>
+      <div class="pf-field">
+        <label>MONEDA</label>
+        <div class="pf-pills">
+          <button class="pf-pill active" onclick="setDivCurrency('USD')">USD $</button>
+          <button class="pf-pill" onclick="setDivCurrency('ARS')">ARS $</button>
+        </div>
+      </div>
+      <div class="pf-field"><label>MONTO TOTAL COBRADO <span id="divCurrLabel">(USD)</span></label><input id="divAmount" type="number" placeholder="ej: 12.50" min="0" step="any" oninput="updateDivUSD()"/></div>
+      <div id="divCCLField" style="display:none;" class="pf-field">
+        <label>CCL (ARS/USD) <span id="divCCLStatus" style="color:var(--text3);font-size:9px;"></span></label>
+        <input id="divCCL" type="number" placeholder="ej: 1250" min="0" step="any" oninput="updateDivUSD()"/>
+      </div>
+      <div style="background:var(--bg3);border-radius:3px;padding:10px 14px;border:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:11px;color:var(--text3);">MONTO EN USD</span>
+        <span id="divUSDDisplay" style="font-size:16px;font-weight:700;color:var(--green);">—</span>
+      </div>
+      <div class="pf-field"><label>NOTAS (opcional)</label><input id="divNotes" placeholder="ej: Q1 2025 dividend"/></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn" onclick="closeDivModal()">CANCELAR</button>
+      <button class="btn primary" onclick="saveDividend()">GUARDAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- REALIZED GAINS PANEL -->
+<div id="realizedPanel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:100;align-items:center;justify-content:center;">
+  <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:3px;width:640px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border2);">
+      <h2 style="font-size:13px;font-weight:700;color:var(--green);letter-spacing:.08em;">// GANANCIAS REALIZADAS</h2>
+      <button onclick="closeRealizedPanel()" style="background:transparent;border:1px solid var(--border2);color:var(--text3);border-radius:3px;padding:4px 12px;cursor:pointer;font-family:var(--mono);font-size:11px;">✕</button>
+    </div>
+    <div style="overflow-y:auto;padding:16px 20px;">
+      <div id="realizedSummary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;"></div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr>
+          <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);letter-spacing:.08em;">TICKER</th>
+          <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);">TIPO</th>
+          <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);">FECHA</th>
+          <th style="padding:6px 10px;text-align:right;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);">MONTO USD</th>
+          <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);">NOTAS</th>
+          <th style="padding:6px 10px;border-bottom:2px solid var(--border2);"></th>
+        </tr></thead>
+        <tbody id="realizedBody"></tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -1634,6 +1691,128 @@ function setStatus(msg,type=''){
 document.getElementById('tickerTA').value=DEFAULT_TICKERS.join('\n');
 renderTable();
 
+// ── REALIZED GAINS (dividends + sales) ──
+let realizedEvents=JSON.parse(localStorage.getItem('pf_realized')||'[]');
+function saveRealized(){localStorage.setItem('pf_realized',JSON.stringify(realizedEvents));}
+
+// ── DIVIDEND MODAL ──
+let divCurrency='USD';
+function setDivCurrency(cur){
+  divCurrency=cur;
+  document.querySelectorAll('#divModal .pf-pill').forEach(p=>p.classList.toggle('active',p.textContent.startsWith(cur)));
+  document.getElementById('divCurrLabel').textContent='('+cur+')';
+  document.getElementById('divCCLField').style.display=cur==='ARS'?'block':'none';
+  document.getElementById('divAmount').value='';
+  document.getElementById('divUSDDisplay').textContent='—';
+}
+
+function openDivModal(){
+  document.getElementById('divTicker').value='';
+  document.getElementById('divDate').value=new Date().toISOString().slice(0,10);
+  document.getElementById('divAmount').value='';
+  document.getElementById('divCCL').value='';
+  document.getElementById('divNotes').value='';
+  document.getElementById('divUSDDisplay').textContent='—';
+  document.getElementById('divCCLStatus').textContent='';
+  divCurrency='USD';
+  setDivCurrency('USD');
+  document.getElementById('divModal').classList.add('open');
+}
+function closeDivModal(){document.getElementById('divModal').classList.remove('open');}
+
+async function autoFetchDivCCL(){
+  if(divCurrency!=='ARS')return;
+  const dateStr=document.getElementById('divDate').value;
+  if(!dateStr)return;
+  const st=document.getElementById('divCCLStatus');
+  st.textContent='cargando...';st.style.color='var(--amber)';
+  const ccl=await fetchCCL(dateStr);
+  if(ccl){
+    document.getElementById('divCCL').value=ccl.toFixed(2);
+    st.textContent='✓ autocompletado';st.style.color='var(--green)';
+    updateDivUSD();
+  }else{st.textContent='sin datos';st.style.color='var(--red)';}
+}
+
+function updateDivUSD(){
+  const amt=parseFloat(document.getElementById('divAmount').value);
+  if(isNaN(amt)||amt<=0){document.getElementById('divUSDDisplay').textContent='—';return;}
+  if(divCurrency==='USD'){
+    document.getElementById('divUSDDisplay').textContent='$'+amt.toFixed(2)+' USD';
+  }else{
+    const ccl=parseFloat(document.getElementById('divCCL').value);
+    if(!isNaN(ccl)&&ccl>0){
+      document.getElementById('divUSDDisplay').textContent='$'+(amt/ccl).toFixed(2)+' USD';
+    }else{document.getElementById('divUSDDisplay').textContent='—';}
+  }
+}
+
+function saveDividend(){
+  const ticker=document.getElementById('divTicker').value.trim().toUpperCase();
+  const date=document.getElementById('divDate').value;
+  const amt=parseFloat(document.getElementById('divAmount').value);
+  const notes=document.getElementById('divNotes').value.trim();
+  if(!ticker||!date||isNaN(amt)||amt<=0){alert('Completá ticker, fecha y monto');return;}
+  let amtUSD=amt;
+  if(divCurrency==='ARS'){
+    const ccl=parseFloat(document.getElementById('divCCL').value);
+    if(!isNaN(ccl)&&ccl>0)amtUSD=+(amt/ccl).toFixed(2);
+    else{alert('Ingresá el CCL para convertir ARS a USD');return;}
+  }
+  realizedEvents.push({id:Date.now(),ticker,date,type:'dividendo',amtUSD,notes});
+  saveRealized();
+  closeDivModal();
+  renderPortfolio();
+}
+
+function deleteRealizedEvent(id){
+  realizedEvents=realizedEvents.filter(e=>e.id!==id);
+  saveRealized();
+  openRealizedPanel();
+  renderPortfolio();
+}
+
+// ── REALIZED PANEL ──
+function openRealizedPanel(){
+  const totalDiv=realizedEvents.filter(e=>e.type==='dividendo').reduce((a,e)=>a+e.amtUSD,0);
+  const totalSale=realizedEvents.filter(e=>e.type==='venta').reduce((a,e)=>a+e.amtUSD,0);
+  const total=totalDiv+totalSale;
+
+  document.getElementById('realizedSummary').innerHTML=`
+    <div class="pf-card"><div class="pf-card-label">TOTAL REALIZADO</div><div class="pf-card-val ${total>=0?'up':'down'}">${total>=0?'+':''}$${total.toFixed(2)}</div></div>
+    <div class="pf-card"><div class="pf-card-label">DIVIDENDOS</div><div class="pf-card-val up">+$${totalDiv.toFixed(2)}</div></div>
+    <div class="pf-card"><div class="pf-card-label">VENTAS</div><div class="pf-card-val ${totalSale>=0?'up':'down'}">${totalSale>=0?'+':''}$${totalSale.toFixed(2)}</div></div>`;
+
+  const sorted=[...realizedEvents].sort((a,b)=>b.date.localeCompare(a.date));
+  document.getElementById('realizedBody').innerHTML=sorted.length
+    ? sorted.map(e=>`<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:7px 10px;text-align:left;font-weight:700;color:#fff;">${e.ticker}</td>
+        <td style="padding:7px 10px;text-align:left;">
+          <span style="padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;letter-spacing:.06em;background:${e.type==='dividendo'?'rgba(51,187,255,0.15)':'rgba(0,255,136,0.12)'};color:${e.type==='dividendo'?'var(--blue)':'var(--green)'};">${e.type.toUpperCase()}</span>
+        </td>
+        <td style="padding:7px 10px;text-align:left;color:var(--text3);">${e.date}</td>
+        <td style="padding:7px 10px;text-align:right;font-weight:700;color:${e.amtUSD>=0?'var(--green)':'var(--red)'};">${e.amtUSD>=0?'+':''}$${e.amtUSD.toFixed(2)}</td>
+        <td style="padding:7px 10px;text-align:left;color:var(--text3);font-size:11px;">${e.notes||'—'}</td>
+        <td style="padding:7px 10px;"><button onclick="deleteRealizedEvent(${e.id})" style="background:transparent;border:1px solid var(--red);color:var(--red);border-radius:3px;padding:2px 7px;font-size:10px;cursor:pointer;font-family:var(--mono);">✕</button></td>
+      </tr>`).join('')
+    : '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text3);">Sin eventos registrados</td></tr>';
+
+  document.getElementById('realizedPanel').classList.add('open');
+  document.getElementById('realizedPanel').style.display='flex';
+}
+function closeRealizedPanel(){
+  document.getElementById('realizedPanel').style.display='none';
+}
+
+function updateRealizedCard(){
+  const total=realizedEvents.reduce((a,e)=>a+e.amtUSD,0);
+  const el=document.getElementById('realizedCardVal');
+  if(!el)return;
+  if(!realizedEvents.length){el.textContent='—';el.style.color='var(--amber)';return;}
+  el.textContent=(total>=0?'+':'')+'$'+total.toFixed(2);
+  el.style.color=total>=0?'var(--green)':'var(--red)';
+}
+
 // ── TAB SWITCHING ──
 let currentTab='dashboard';
 function switchTab(tab){
@@ -2353,7 +2532,10 @@ async function renderPortfolio(){
     <div class="pf-card"><div class="pf-card-label">P&L TOTAL $</div><div class="pf-card-val ${totalPL>=0?'up':'down'}">${fD(totalPL)}</div></div>
     <div class="pf-card"><div class="pf-card-label">P&L TOTAL %</div><div class="pf-card-val ${totalPLPct>=0?'up':'down'}">${totalPLPct>=0?'+':''}${totalPLPct.toFixed(2)}%</div></div>
     <div class="pf-card"><div class="pf-card-label">P&L DIARIO</div><div class="pf-card-val ${dailyPL>=0?'up':'down'}">${fD(dailyPL)} <span style="font-size:12px;">(${dailyPLPct>=0?'+':''}${dailyPLPct.toFixed(2)}%)</span></div></div>
-    <div class="pf-card"><div class="pf-card-label">GANANCIAS REALIZADAS</div><div class="pf-card-val" style="color:var(--amber);">—</div></div>`;
+    <div class="pf-card" onclick="openRealizedPanel()" style="cursor:pointer;" title="Ver detalle">
+      <div class="pf-card-label">GANANCIAS REALIZADAS</div>
+      <div class="pf-card-val" id="realizedCardVal" style="color:var(--amber);">—</div>
+    </div>`;
 
   // Table rows — grouped by ticker
   // Add % portfolio to each grouped row
@@ -2387,6 +2569,7 @@ async function renderPortfolio(){
   // Charts
   document.getElementById('pfChartsWrap').style.display='grid';
   renderPfCharts(groupedRows);
+  updateRealizedCard();
 }
 
 let pfPeriod='1M';
