@@ -199,7 +199,9 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 
 
 /* ADD POSITION MODAL */
-#pfModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:100;align-items:center;justify-content:center;}
+#importModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:100;align-items:center;justify-content:center;}
+#importModal.open{display:flex;}
+
 #pfModal.open{display:flex;}
 #pfModalBox{background:var(--bg2);border:1px solid var(--border2);border-radius:3px;width:420px;max-width:95vw;}
 #pfModalBox h2{font-size:13px;font-weight:700;padding:14px 20px;border-bottom:1px solid var(--border2);color:var(--green);letter-spacing:.08em;}
@@ -359,7 +361,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
   <div class="pf-toolbar">
     <button class="btn primary" onclick="openPfModal()">+ AGREGAR POSICIÓN</button>
     <button class="btn" onclick="exportCSV()">↓ EXPORTAR CSV</button>
-    <label class="btn" style="cursor:pointer;">↑ IMPORTAR CSV<input type="file" accept=".csv" style="display:none;" onchange="importCSV(event)"/></label>
+    <button class="btn" onclick="openImportModal()">↑ IMPORTAR CSV</button>
     <button class="btn" onclick="refreshPortfolio()" style="margin-left:auto;">↻ ACTUALIZAR PRECIOS</button>
   </div>
   <div class="pf-summary" id="pfSummary"></div>
@@ -398,6 +400,45 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
     </tr></thead>
     <tbody id="pfTbody"><tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr></tbody>
   </table>
+</div>
+
+<div id="importModal">
+  <div id="pfModalBox" style="width:440px;">
+    <h2>// IMPORTAR MOVIMIENTOS CSV</h2>
+    <div class="pf-form">
+      <div class="pf-field">
+        <label>TICKER</label>
+        <input id="importTicker" placeholder="ej: MELI" style="text-transform:uppercase;" oninput="autoFillImportRatio()"/>
+      </div>
+      <div class="pf-field">
+        <label>RATIO <span id="importRatioSource" style="color:var(--green);font-size:9px;"></span></label>
+        <input id="importRatio" type="number" placeholder="ej: 120" min="0.001" step="any"/>
+      </div>
+      <div class="pf-field">
+        <label>ARCHIVO CSV</label>
+        <label style="border:1px dashed var(--border2);border-radius:3px;padding:14px;text-align:center;cursor:pointer;display:block;color:var(--text3);font-size:11px;" id="importDropZone">
+          <div style="font-size:18px;margin-bottom:4px;">↑</div>
+          <div id="importFileName">Seleccioná el archivo CSV</div>
+          <div style="font-size:10px;margin-top:3px;">Columnas: Fecha · Tipo · Nominales · Precio · Moneda</div>
+          <input type="file" id="importFileInput" accept=".csv,.xlsx,.xls" style="display:none;" onchange="handleImportFile(event)"/>
+        </label>
+      </div>
+      <div id="importPreview" style="display:none;">
+        <div style="font-size:10px;color:var(--text3);letter-spacing:.08em;margin-bottom:6px;" id="importPreviewLabel"></div>
+        <div style="max-height:160px;overflow-y:auto;border:1px solid var(--border2);border-radius:3px;">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;">
+            <thead><tr id="importPreviewHead" style="background:var(--bg3);"></tr></thead>
+            <tbody id="importPreviewBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="importStatus" style="display:none;font-size:11px;text-align:center;"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn" onclick="closeImportModal()">CANCELAR</button>
+      <button class="btn primary" id="importConfirmBtn" onclick="confirmImport()" style="display:none;">IMPORTAR</button>
+    </div>
+  </div>
 </div>
 
 <div id="pfModal">
@@ -1948,31 +1989,188 @@ function exportCSV(){
   a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
   a.download='portfolio.csv';a.click();
 }
-function importCSV(e){
-  const file=e.target.files[0];if(!file)return;
-  const reader=new FileReader();
-  reader.onload=ev=>{
-    const lines=ev.target.result.split('\n').filter(Boolean);
-    const header=lines[0].toLowerCase().split(',');
-    const ti=header.indexOf('ticker'),si=header.indexOf('shares'),ci=header.indexOf('cost'),di=header.indexOf('date');
-    const cdi=header.indexOf('cedears'),ri=header.indexOf('ratio');
-    for(let i=1;i<lines.length;i++){
-      const cols=lines[i].split(',');
-      const ticker=cols[ti]?.trim().toUpperCase();
-      const shares=parseFloat(cols[si]);
-      const cost=parseFloat(cols[ci]);
-      const date=cols[di]?.trim();
-      const cedears=cdi>=0?parseFloat(cols[cdi]):null;
-      const ratio=ri>=0?parseFloat(cols[ri]):null;
-      if(ticker&&!isNaN(shares)&&!isNaN(cost)&&date){
-        pfPositions.push({ticker,cedears:isNaN(cedears)?null:cedears,ratio:isNaN(ratio)?null:ratio,shares,cost,date,id:Date.now()+i});
-        if(!tickers.includes(ticker))tickers.push(ticker);
-      }
+let importParsedRows=[];
+
+function openImportModal(){
+  document.getElementById('importTicker').value='';
+  document.getElementById('importRatio').value='';
+  document.getElementById('importRatioSource').textContent='';
+  document.getElementById('importFileName').textContent='Seleccioná el archivo CSV';
+  document.getElementById('importPreview').style.display='none';
+  document.getElementById('importStatus').style.display='none';
+  document.getElementById('importConfirmBtn').style.display='none';
+  importParsedRows=[];
+  document.getElementById('importModal').classList.add('open');
+}
+function closeImportModal(){document.getElementById('importModal').classList.remove('open');}
+
+function autoFillImportRatio(){
+  const ticker=document.getElementById('importTicker').value.trim().toUpperCase();
+  const ratio=CEDEAR_RATIOS[ticker];
+  if(ratio){
+    document.getElementById('importRatio').value=ratio;
+    document.getElementById('importRatioSource').textContent='✓ autocompletado';
+  }else{
+    document.getElementById('importRatioSource').textContent='';
+  }
+  // re-preview if file already loaded
+  if(importParsedRows.length)previewImport();
+}
+
+async function handleImportFile(event){
+  const file=event.target.files[0];
+  if(!file)return;
+  document.getElementById('importFileName').textContent=file.name;
+  document.getElementById('importStatus').style.display='block';
+  document.getElementById('importStatus').style.color='var(--amber)';
+  document.getElementById('importStatus').textContent='Leyendo archivo...';
+
+  const text=await file.text();
+  // Parse CSV — handle comma or semicolon separators
+  const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
+  if(lines.length<2){
+    document.getElementById('importStatus').textContent='Archivo vacío o inválido.';
+    document.getElementById('importStatus').style.color='var(--red)';
+    return;
+  }
+  // Detect separator
+  const sep=lines[0].includes(';')?';':',';
+  const headers=lines[0].split(sep).map(h=>h.trim().toLowerCase().replace(/"/g,''));
+
+  // Find column indices — support both named and positional (Fecha,Tipo,Nominales,Precio,Moneda)
+  const fi=headers.findIndex(h=>h.includes('fecha')||h.includes('date'))??0;
+  const ni=headers.findIndex(h=>h.includes('nominal')||h.includes('cantidad')||h.includes('qty')||h.includes('shares'));
+  const pi=headers.findIndex(h=>h.includes('precio')||h.includes('price'));
+  const mi=headers.findIndex(h=>h.includes('moneda')||h.includes('currency')||h.includes('curr'));
+  const ti=headers.findIndex(h=>h.includes('tipo')||h.includes('type')||h.includes('operacion'));
+
+  // Fallback to positional if named not found (Fecha=0,Tipo=1,Nominales=2,Precio=3,Moneda=4)
+  const colF=fi>=0?fi:0;
+  const colN=ni>=0?ni:2;
+  const colP=pi>=0?pi:3;
+  const colM=mi>=0?mi:4;
+  const colT=ti>=0?ti:1;
+
+  importParsedRows=[];
+  for(let i=1;i<lines.length;i++){
+    const cols=lines[i].split(sep).map(c=>c.trim().replace(/"/g,''));
+    if(cols.length<3)continue;
+    const tipo=(cols[colT]||'').toLowerCase();
+    if(tipo&&!tipo.includes('compra')&&!tipo.includes('buy'))continue; // skip non-purchases
+    const fecha=cols[colF];
+    const nominales=parseFloat(cols[colN]);
+    const precio=parseFloat(cols[colP]);
+    const moneda=(cols[colM]||'USD').toUpperCase().trim();
+    if(isNaN(nominales)||isNaN(precio)||!fecha)continue;
+    importParsedRows.push({fecha,nominales,precio,moneda,ccl:null,precioUSD:null});
+  }
+
+  if(!importParsedRows.length){
+    document.getElementById('importStatus').textContent='No se encontraron compras válidas.';
+    document.getElementById('importStatus').style.color='var(--red)';
+    return;
+  }
+
+  document.getElementById('importStatus').textContent=`Obteniendo tipos de cambio para ${importParsedRows.filter(r=>r.moneda==='ARS').length} filas en ARS...`;
+  document.getElementById('importStatus').style.color='var(--amber)';
+
+  // Fetch CCL for each unique date with ARS
+  const uniqueDates=[...new Set(importParsedRows.filter(r=>r.moneda==='ARS').map(r=>r.fecha))];
+  const cclCache={};
+  await Promise.all(uniqueDates.map(async fecha=>{
+    // normalize date to YYYY-MM-DD
+    const norm=normalizeDate(fecha);
+    if(norm)cclCache[fecha]=await fetchCCL(norm);
+  }));
+
+  // Assign CCL and convert
+  const ratio=parseFloat(document.getElementById('importRatio').value)||1;
+  for(const r of importParsedRows){
+    if(r.moneda==='ARS'){
+      r.ccl=cclCache[r.fecha]||null;
+      r.precioUSD=r.ccl?+(r.precio/r.ccl).toFixed(4):null;
+    }else{
+      r.precioUSD=r.precio;
     }
-    savePf();renderPortfolio();
-  };
-  reader.readAsText(file);
-  e.target.value='';
+  }
+
+  previewImport();
+}
+
+function normalizeDate(str){
+  // Handle M/D/YYYY or DD/MM/YYYY or YYYY-MM-DD
+  if(!str)return null;
+  str=str.trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(str))return str;
+  const parts=str.split(/[\/\-\.]/);
+  if(parts.length===3){
+    // Detect M/D/YYYY (US format from Excel)
+    if(parseInt(parts[2])>31){
+      const m=parts[0].padStart(2,'0');
+      const d=parts[1].padStart(2,'0');
+      return`${parts[2]}-${m}-${d}`;
+    }
+    // DD/MM/YYYY
+    return`${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+  }
+  return null;
+}
+
+function previewImport(){
+  const ratio=parseFloat(document.getElementById('importRatio').value)||1;
+  const ticker=document.getElementById('importTicker').value.trim().toUpperCase()||'?';
+  const preview=document.getElementById('importPreview');
+  const head=document.getElementById('importPreviewHead');
+  const body=document.getElementById('importPreviewBody');
+  const label=document.getElementById('importPreviewLabel');
+
+  label.textContent=`${importParsedRows.length} movimiento${importParsedRows.length!==1?'s':''} encontrados para ${ticker}`;
+  head.innerHTML='<th style="padding:5px 8px;text-align:left;color:var(--text3);">FECHA</th><th style="padding:5px 8px;text-align:right;color:var(--text3);">CEDEARs</th><th style="padding:5px 8px;text-align:right;color:var(--text3);">PRECIO</th><th style="padding:5px 8px;text-align:right;color:var(--text3);">CCL</th><th style="padding:5px 8px;text-align:right;color:var(--text3);">USD/CEDEAR</th><th style="padding:5px 8px;text-align:right;color:var(--text3);">SHARES</th>';
+
+  body.innerHTML=importParsedRows.map(r=>{
+    const shares=+(r.nominales/ratio).toFixed(6);
+    const usd=r.precioUSD;
+    return`<tr style="border-top:1px solid var(--border);">
+      <td style="padding:5px 8px;color:var(--text2);">${r.fecha}</td>
+      <td style="padding:5px 8px;text-align:right;color:var(--text2);">${r.nominales}</td>
+      <td style="padding:5px 8px;text-align:right;color:var(--text3);">${r.moneda==='ARS'?'$'+r.precio.toLocaleString():'$'+r.precio.toFixed(4)}</td>
+      <td style="padding:5px 8px;text-align:right;color:var(--text3);">${r.ccl?r.ccl.toFixed(0):'—'}</td>
+      <td style="padding:5px 8px;text-align:right;color:${usd?'var(--green)':'var(--red)'};">${usd?'$'+usd.toFixed(4):'sin CCL'}</td>
+      <td style="padding:5px 8px;text-align:right;color:var(--text2);">${shares}</td>
+    </tr>`;
+  }).join('');
+
+  preview.style.display='block';
+  document.getElementById('importStatus').style.display='none';
+  document.getElementById('importConfirmBtn').style.display=importParsedRows.some(r=>r.precioUSD)?'block':'none';
+}
+
+async function confirmImport(){
+  const ticker=document.getElementById('importTicker').value.trim().toUpperCase();
+  const ratio=parseFloat(document.getElementById('importRatio').value)||1;
+  if(!ticker){alert('Ingresá el ticker primero');return;}
+
+  let imported=0;
+  for(const r of importParsedRows){
+    if(!r.precioUSD)continue;
+    const date=normalizeDate(r.fecha)||r.fecha;
+    const shares=+(r.nominales/ratio).toFixed(6);
+    pfPositions.push({
+      ticker,
+      cedears:r.nominales,
+      ratio,
+      shares,
+      cost:r.precioUSD, // cost per CEDEAR in USD
+      date,
+      id:Date.now()+imported,
+    });
+    imported++;
+  }
+  savePf();
+  if(!tickers.includes(ticker))tickers.push(ticker);
+  closeImportModal();
+  renderPortfolio();
+  setStatus(`${imported} movimiento${imported!==1?'s':''} importados`,'ok');
 }
 
 // ── FETCH SPY RETURN SINCE DATE ──
