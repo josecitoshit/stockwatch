@@ -1716,9 +1716,9 @@ function openDivModal(){
   document.getElementById('divCCLStatus').textContent='';
   divCurrency='USD';
   setDivCurrency('USD');
-  document.getElementById('divModal').classList.add('open');
+  document.getElementById('divModal').style.display='flex';
 }
-function closeDivModal(){document.getElementById('divModal').classList.remove('open');}
+function closeDivModal(){document.getElementById('divModal').style.display='none';}
 
 async function autoFetchDivCCL(){
   if(divCurrency!=='ARS')return;
