@@ -405,7 +405,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 </div>
 
 <div id="importModal">
-  <div id="pfModalBox" style="width:440px;">
+  <div id="importModalBox" style="width:440px;background:var(--bg2);border:1px solid var(--border2);border-radius:3px;">
     <h2>// IMPORTAR MOVIMIENTOS CSV</h2>
     <div class="pf-form">
       <div class="pf-field">
@@ -2409,7 +2409,6 @@ async function buildPortfolioHistory(groupedRows){
 function renderPfCharts(rows){
   document.getElementById('pfChartsWrap').style.display='block';
 
-  // Pie by ticker — use setTimeout to ensure canvas is visible before rendering
   if(pfCharts.pie){pfCharts.pie.destroy();pfCharts.pie=null;}
   setTimeout(()=>{
     const pieCtx=document.getElementById('pfPieChart')?.getContext('2d');
@@ -2418,14 +2417,14 @@ function renderPfCharts(rows){
       pfCharts.pie=new Chart(pieCtx,{
         type:'doughnut',
         data:{
-          labels:groupedRows.map(r=>r.ticker),
-          datasets:[{data:groupedRows.map(r=>+(r.currentVal??r.costVal).toFixed(2)),backgroundColor:colors.slice(0,groupedRows.length),borderWidth:0}]
+          labels:rows.map(r=>r.ticker),
+          datasets:[{data:rows.map(r=>+(r.currentVal??r.costVal).toFixed(2)),backgroundColor:colors.slice(0,rows.length),borderWidth:0}]
         },
         options:{responsive:true,maintainAspectRatio:false,
           plugins:{legend:{display:true,position:'bottom',labels:{font:{size:10},color:'#b0b0b0',boxWidth:10,padding:5}}}}
       });
     }
-    buildPortfolioHistory(groupedRows);
+    buildPortfolioHistory(rows);
   },50);
 }
 
