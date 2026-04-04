@@ -1707,11 +1707,10 @@ function pfSwitchTab(tab){
   document.getElementById('pfTab-manual').style.color=!isImg?'var(--green)':'var(--text3)';
   document.getElementById('pfTab-manual').style.borderBottomColor=!isImg?'var(--green)':'transparent';
   document.getElementById('pfImg-section').style.display=isImg?'flex':'none';
-  document.getElementById('pfManual-section').style.display=!isImg?'flex':'none';
-  if(!isImg){
-    document.getElementById('pfResultForm').style.display='flex';
-    document.getElementById('pfSaveBtn').style.display='block';
-  }
+  document.getElementById('pfManual-section').style.display='none'; // fields are in pfResultForm
+  // show result form immediately in manual mode
+  document.getElementById('pfResultForm').style.display=!isImg?'flex':'none';
+  document.getElementById('pfSaveBtn').style.display=!isImg?'block':'none';
 }
 
 function autoFillRatio(){
@@ -1752,20 +1751,6 @@ function updateUSDCostDirect(){
     document.getElementById('pfCostUSDDisplay').textContent='—';
   }
 }
-function pfSwitchTab(tab){
-  const isImg=tab==='img';
-  document.getElementById('pfTab-img').style.color=isImg?'var(--green)':'var(--text3)';
-  document.getElementById('pfTab-img').style.borderBottomColor=isImg?'var(--green)':'transparent';
-  document.getElementById('pfTab-manual').style.color=!isImg?'var(--green)':'var(--text3)';
-  document.getElementById('pfTab-manual').style.borderBottomColor=!isImg?'var(--green)':'transparent';
-  document.getElementById('pfImg-section').style.display=isImg?'flex':'none';
-  document.getElementById('pfManual-section').style.display=!isImg?'flex':'none';
-  if(!isImg){
-    document.getElementById('pfResultForm').style.display='flex';
-    document.getElementById('pfSaveBtn').style.display='block';
-  }
-}
-
 function openPfModal(){
   document.getElementById('pfTicker').value='';
   document.getElementById('pfCedears').value='';
@@ -2334,40 +2319,64 @@ function renderLineChart(){
   });
 }
 
-async function buildPortfolioHistory(rows){
-  if(!rows.length)return;
-  // Find earliest buy date
-  const earliest=rows.reduce((a,r)=>r.date<a?r.date:a,rows[0].date);
-  const p1=Math.floor(new Date(earliest).getTime()/1000);
-  const p2=Math.floor(Date.now()/1000);
+async function buildPortfolioHistory(groupedRows){
+  if(!groupedRows.length)return;
 
-  // Fetch daily prices for each ticker
+  // Use already-loaded weekly closes from stockData, or fetch if missing
   const priceMap={};
-  await Promise.all(rows.map(async r=>{
+  const toFetch=groupedRows.filter(r=>!stockData[r.ticker]?.wCloses?.length);
+
+  // Fetch missing tickers
+  await Promise.all(toFetch.map(async r=>{
     try{
-      const url=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(r.ticker)}?interval=1d&period1=${p1}&period2=${p2}&includePrePost=false`;
-      const data=await proxyFetch(url);
-      const ts=data.chart?.result?.[0]?.timestamp||[];
-      const cl=data.chart?.result?.[0]?.indicators?.quote?.[0]?.close||[];
+      const chart=await yahooFetch(r.ticker);
+      const ts=chart.timestamp||[];
+      const cl=chart.indicators?.quote?.[0]?.close||[];
       priceMap[r.ticker]={ts,cl};
     }catch(e){}
   }));
 
-  // Build common date range (all trading days)
+  // Use stockData weekly closes for loaded tickers
+  for(const r of groupedRows){
+    if(!priceMap[r.ticker]&&stockData[r.ticker]?.wCloses?.length){
+      // Convert weekly to ts/cl format using wTimestamps
+      priceMap[r.ticker]={
+        ts:stockData[r.ticker].wTimestamps,
+        cl:stockData[r.ticker].wCloses,
+      };
+    }
+  }
+
+  if(!Object.keys(priceMap).length){
+    // No price data at all — show a simple cost basis line
+    const allDates=[...new Set(pfPositions.map(p=>p.date))].sort();
+    if(!allDates.length)return;
+    const dates=[],values=[];
+    for(const date of allDates){
+      let val=0;
+      for(const r of groupedRows){
+        if(date>=r.date)val+=r.costVal;
+      }
+      if(val>0){dates.push(date);values.push(+val.toFixed(2));}
+    }
+    pfHistoryData={dates,values};
+    renderLineChart();
+    return;
+  }
+
+  // Build daily timeline from all timestamps
   const allTs=new Set();
-  Object.values(priceMap).forEach(({ts})=>ts.forEach(t=>allTs.add(t)));
+  Object.values(priceMap).forEach(({ts})=>ts.forEach(t=>{if(t)allTs.add(t);}));
   const sortedTs=[...allTs].sort((a,b)=>a-b);
 
-  // For each date, compute portfolio value (only positions active on that date)
   const dates=[],values=[];
   for(const ts of sortedTs){
     const date=new Date(ts*1000).toISOString().slice(0,10);
     let val=0;
-    for(const r of rows){
-      if(date<r.date)continue; // position not yet opened
+    for(const r of groupedRows){
+      if(date<r.date)continue;
       const pm=priceMap[r.ticker];
       if(!pm)continue;
-      // find closest price on or before this ts
       let price=null;
       for(let i=pm.ts.length-1;i>=0;i--){
         if(pm.ts[i]<=ts&&pm.cl[i]!==null){price=pm.cl[i];break;}
