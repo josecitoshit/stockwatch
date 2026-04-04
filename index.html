@@ -565,11 +565,9 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
       <table style="width:100%;border-collapse:collapse;font-size:12px;">
         <thead><tr>
           <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);letter-spacing:.08em;">TICKER</th>
-          <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);">TIPO</th>
-          <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);">FECHA</th>
-          <th style="padding:6px 10px;text-align:right;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);">MONTO USD</th>
-          <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);">NOTAS</th>
-          <th style="padding:6px 10px;border-bottom:2px solid var(--border2);"></th>
+          <th style="padding:6px 10px;text-align:right;font-size:10px;color:var(--blue);border-bottom:2px solid var(--border2);">DIVIDENDOS</th>
+          <th style="padding:6px 10px;text-align:right;font-size:10px;color:var(--green);border-bottom:2px solid var(--border2);">VENTAS</th>
+          <th style="padding:6px 10px;text-align:right;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);">TOTAL</th>
         </tr></thead>
         <tbody id="realizedBody"></tbody>
       </table>
@@ -1783,22 +1781,63 @@ function openRealizedPanel(){
     <div class="pf-card"><div class="pf-card-label">DIVIDENDOS</div><div class="pf-card-val up">+$${totalDiv.toFixed(2)}</div></div>
     <div class="pf-card"><div class="pf-card-label">VENTAS</div><div class="pf-card-val ${totalSale>=0?'up':'down'}">${totalSale>=0?'+':''}$${totalSale.toFixed(2)}</div></div>`;
 
-  const sorted=[...realizedEvents].sort((a,b)=>b.date.localeCompare(a.date));
-  document.getElementById('realizedBody').innerHTML=sorted.length
-    ? sorted.map(e=>`<tr style="border-bottom:1px solid var(--border);">
-        <td style="padding:7px 10px;text-align:left;font-weight:700;color:#fff;">${e.ticker}</td>
-        <td style="padding:7px 10px;text-align:left;">
-          <span style="padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;letter-spacing:.06em;background:${e.type==='dividendo'?'rgba(51,187,255,0.15)':'rgba(0,255,136,0.12)'};color:${e.type==='dividendo'?'var(--blue)':'var(--green)'};">${e.type.toUpperCase()}</span>
-        </td>
-        <td style="padding:7px 10px;text-align:left;color:var(--text3);">${e.date}</td>
-        <td style="padding:7px 10px;text-align:right;font-weight:700;color:${e.amtUSD>=0?'var(--green)':'var(--red)'};">${e.amtUSD>=0?'+':''}$${e.amtUSD.toFixed(2)}</td>
-        <td style="padding:7px 10px;text-align:left;color:var(--text3);font-size:11px;">${e.notes||'—'}</td>
-        <td style="padding:7px 10px;"><button onclick="deleteRealizedEvent(${e.id})" style="background:transparent;border:1px solid var(--red);color:var(--red);border-radius:3px;padding:2px 7px;font-size:10px;cursor:pointer;font-family:var(--mono);">✕</button></td>
-      </tr>`).join('')
-    : '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text3);">Sin eventos registrados</td></tr>';
+  // Group by ticker
+  const byTicker={};
+  for(const e of realizedEvents){
+    if(!byTicker[e.ticker])byTicker[e.ticker]={dividendo:0,venta:0,events:[]};
+    byTicker[e.ticker][e.type]=(byTicker[e.ticker][e.type]||0)+e.amtUSD;
+    byTicker[e.ticker].events.push(e);
+  }
 
-  document.getElementById('realizedPanel').classList.add('open');
+  const tickers=Object.keys(byTicker).sort();
+
+  if(!tickers.length){
+    document.getElementById('realizedBody').innerHTML=
+      '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text3);">Sin eventos registrados</td></tr>';
+  }else{
+    document.getElementById('realizedBody').innerHTML=tickers.map(ticker=>{
+      const g=byTicker[ticker];
+      const rowTotal=g.dividendo+g.venta;
+      // Detail rows (hidden by default)
+      const detailRows=g.events
+        .sort((a,b)=>b.date.localeCompare(a.date))
+        .map(e=>`<tr id="detail-${e.id}" style="display:none;background:var(--bg3);">
+          <td style="padding:5px 10px 5px 28px;text-align:left;color:var(--text3);font-size:11px;">${e.date}</td>
+          <td style="padding:5px 10px;text-align:left;">
+            <span style="padding:2px 7px;border-radius:3px;font-size:10px;font-weight:700;letter-spacing:.06em;background:${e.type==='dividendo'?'rgba(51,187,255,0.15)':'rgba(0,255,136,0.12)'};color:${e.type==='dividendo'?'var(--blue)':'var(--green)'};">${e.type.toUpperCase()}</span>
+            ${e.notes?`<span style="color:var(--text3);font-size:10px;margin-left:6px;">${e.notes}</span>`:''}
+          </td>
+          <td style="padding:5px 10px;text-align:right;color:${e.amtUSD>=0?'var(--green)':'var(--red)'};font-size:11px;">${e.amtUSD>=0?'+':''}$${e.amtUSD.toFixed(2)}</td>
+          <td style="padding:5px 10px;text-align:right;">
+            <button onclick="deleteRealizedEvent(${e.id})" style="background:transparent;border:1px solid var(--red);color:var(--red);border-radius:3px;padding:2px 6px;font-size:10px;cursor:pointer;font-family:var(--mono);">✕</button>
+          </td>
+        </tr>`).join('');
+
+      return`<tr onclick="toggleRealizedTicker('${ticker}')" style="cursor:pointer;border-bottom:1px solid var(--border);">
+        <td style="padding:8px 10px;text-align:left;font-weight:700;color:#fff;">
+          <span id="arrow-${ticker}" style="margin-right:6px;color:var(--text3);font-size:10px;">▶</span>${ticker}
+        </td>
+        <td style="padding:8px 10px;text-align:right;color:var(--green);font-weight:600;">${g.dividendo>0?'+$'+g.dividendo.toFixed(2):'—'}</td>
+        <td style="padding:8px 10px;text-align:right;color:${g.venta>=0?'var(--green)':'var(--red)'};font-weight:600;">${g.venta!==0?(g.venta>=0?'+$':'−$')+Math.abs(g.venta).toFixed(2):'—'}</td>
+        <td style="padding:8px 10px;text-align:right;font-weight:700;color:${rowTotal>=0?'var(--green)':'var(--red)'};">${rowTotal>=0?'+':''}$${rowTotal.toFixed(2)}</td>
+      </tr>
+      ${detailRows}`;
+    }).join('');
+  }
+
   document.getElementById('realizedPanel').style.display='flex';
+}
+
+function toggleRealizedTicker(ticker){
+  // Find all detail rows for this ticker and toggle visibility
+  const byTicker=realizedEvents.filter(e=>e.ticker===ticker);
+  const arrow=document.getElementById('arrow-'+ticker);
+  const isOpen=arrow&&arrow.textContent==='▼';
+  byTicker.forEach(e=>{
+    const row=document.getElementById('detail-'+e.id);
+    if(row)row.style.display=isOpen?'none':'table-row';
+  });
+  if(arrow)arrow.textContent=isOpen?'▶':'▼';
 }
 function closeRealizedPanel(){
   document.getElementById('realizedPanel').style.display='none';
