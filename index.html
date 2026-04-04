@@ -190,6 +190,10 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 .pf-table td{padding:8px 10px;text-align:right;font-size:12px;color:var(--text2);border-bottom:1px solid var(--border);white-space:nowrap;}
 .pf-table td:first-child{text-align:left;}
 .pf-table tr:hover td{background:var(--bg3);}
+.pf-table th{cursor:default;}
+.pf-sort-icon::after{content:'';color:var(--text3);font-size:9px;margin-left:3px;}
+.pf-sort-icon.asc::after{content:'↑';color:var(--green);}
+.pf-sort-icon.desc::after{content:'↓';color:var(--green);}
 .pf-charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
 .pf-chart-box{background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:14px;}
 .pf-pills{display:flex;gap:6px;margin-bottom:2px;}
@@ -389,19 +393,20 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
     </div>
   </div>
   <table class="pf-table" id="pfTable">
-    <thead><tr>
-      <th>TICKER</th>
-      <th>CEDEARs</th>
-      <th>RATIO</th>
-      <th>SHARES</th>
-      <th>COSTO PROM</th>
-      <th>PRECIO ACT</th>
-      <th>VALOR</th>
-      <th>P&L $</th>
-      <th>P&L %</th>
+    <thead><tr id="pfThead">
+      <th onclick="sortPfTable('ticker')" style="cursor:pointer;">TICKER <span class="pf-sort-icon" data-col="ticker"></span></th>
+      <th onclick="sortPfTable('cedears')" style="cursor:pointer;">CEDEARs <span class="pf-sort-icon" data-col="cedears"></span></th>
+      <th onclick="sortPfTable('ratio')" style="cursor:pointer;">RATIO <span class="pf-sort-icon" data-col="ratio"></span></th>
+      <th onclick="sortPfTable('shares')" style="cursor:pointer;">SHARES <span class="pf-sort-icon" data-col="shares"></span></th>
+      <th onclick="sortPfTable('cost')" style="cursor:pointer;">COSTO PROM <span class="pf-sort-icon" data-col="cost"></span></th>
+      <th onclick="sortPfTable('price')" style="cursor:pointer;">PRECIO ACT <span class="pf-sort-icon" data-col="price"></span></th>
+      <th onclick="sortPfTable('currentVal')" style="cursor:pointer;">VALOR <span class="pf-sort-icon" data-col="currentVal"></span></th>
+      <th onclick="sortPfTable('pctPortfolio')" style="cursor:pointer;">% PORTFOLIO <span class="pf-sort-icon" data-col="pctPortfolio"></span></th>
+      <th onclick="sortPfTable('plDol')" style="cursor:pointer;">P&L $ <span class="pf-sort-icon" data-col="plDol"></span></th>
+      <th onclick="sortPfTable('plPct')" style="cursor:pointer;">P&L % <span class="pf-sort-icon" data-col="plPct"></span></th>
       <th></th>
     </tr></thead>
-    <tbody id="pfTbody"><tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr></tbody>
+    <tbody id="pfTbody"><tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr></tbody>
   </table>
 </div>
 
@@ -2002,7 +2007,18 @@ function exportCSV(){
   a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
   a.download='portfolio.csv';a.click();
 }
-let importParsedRows=[];
+let pfSortCol=null,pfSortDir='desc';
+
+function sortPfTable(col){
+  if(pfSortCol===col){pfSortDir=pfSortDir==='asc'?'desc':'asc';}
+  else{pfSortCol=col;pfSortDir='desc';}
+  // Update sort icons
+  document.querySelectorAll('.pf-sort-icon').forEach(el=>{
+    el.className='pf-sort-icon';
+    if(el.dataset.col===col)el.classList.add(pfSortDir);
+  });
+  renderPortfolio();
+}
 
 let importFormat='cocos';
 
@@ -2340,6 +2356,20 @@ async function renderPortfolio(){
     <div class="pf-card"><div class="pf-card-label">GANANCIAS REALIZADAS</div><div class="pf-card-val" style="color:var(--amber);">—</div></div>`;
 
   // Table rows — grouped by ticker
+  // Add % portfolio to each grouped row
+  const totalValForPct=groupedRows.reduce((a,g)=>a+(g.currentVal??g.costVal),0);
+  groupedRows.forEach(g=>{g.pctPortfolio=totalValForPct>0?((g.currentVal??g.costVal)/totalValForPct)*100:null;});
+
+  // Sort if active
+  if(pfSortCol){
+    groupedRows.sort((a,b)=>{
+      const va=a[pfSortCol]??( pfSortDir==='asc'?Infinity:-Infinity);
+      const vb=b[pfSortCol]??( pfSortDir==='asc'?Infinity:-Infinity);
+      if(typeof va==='string')return pfSortDir==='asc'?va.localeCompare(vb):vb.localeCompare(va);
+      return pfSortDir==='asc'?va-vb:vb-va;
+    });
+  }
+
   tbody.innerHTML=groupedRows.map(g=>`<tr>
     <td><span class="ts">${g.ticker}</span></td>
     <td>${g.cedears??'—'}</td>
@@ -2348,8 +2378,9 @@ async function renderPortfolio(){
     <td>$${g.cost.toFixed(2)}</td>
     <td>${g.price?'$'+g.price.toFixed(2):'—'}</td>
     <td>${g.currentVal?fM(g.currentVal):'—'}</td>
-    <td class="${g.plDol===null?'neu':g.plDol>=0?'up':'down'}">${g.plDol!==null?fD(g.plDol):'—'}</td>
-    <td class="${g.plPct===null?'neu':g.plPct>=0?'up':'down'}">${g.plPct!==null?(g.plPct>=0?'+':'')+g.plPct.toFixed(2)+'%':'—'}</td>
+    <td style="color:var(--text2);">${g.pctPortfolio!=null?g.pctPortfolio.toFixed(1)+'%':'—'}</td>
+    <td style="font-weight:500;color:${g.plDol===null?'var(--text2)':g.plDol>=0?'var(--green)':'var(--red)'};">${g.plDol!==null?fD(g.plDol):'—'}</td>
+    <td style="font-weight:500;color:${g.plPct===null?'var(--text2)':g.plPct>=0?'var(--green)':'var(--red)'};">${g.plPct!==null?(g.plPct>=0?'+':'')+g.plPct.toFixed(2)+'%':'—'}</td>
     <td><button class="btn" onclick="deletePfTicker('${g.ticker}')" style="padding:3px 8px;font-size:10px;color:var(--red);border-color:var(--red);">✕</button></td>
   </tr>`).join('');
 
