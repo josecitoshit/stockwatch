@@ -406,23 +406,30 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 </div>
 
 <div id="importModal">
-  <div id="importModalBox" style="width:440px;background:var(--bg2);border:1px solid var(--border2);border-radius:3px;">
+  <div id="importModalBox" style="width:460px;background:var(--bg2);border:1px solid var(--border2);border-radius:3px;">
     <h2>// IMPORTAR MOVIMIENTOS CSV</h2>
     <div class="pf-form">
       <div class="pf-field">
         <label>TICKER</label>
-        <input id="importTicker" placeholder="ej: MELI" style="text-transform:uppercase;" oninput="autoFillImportRatio()"/>
+        <input id="importTicker" placeholder="ej: GLOB" style="text-transform:uppercase;" oninput="autoFillImportRatio()"/>
       </div>
       <div class="pf-field">
         <label>RATIO <span id="importRatioSource" style="color:var(--green);font-size:9px;"></span></label>
-        <input id="importRatio" type="number" placeholder="ej: 120" min="0.001" step="any"/>
+        <input id="importRatio" type="number" placeholder="ej: 18" min="0.001" step="any"/>
+      </div>
+      <div class="pf-field">
+        <label>BROKER / FORMATO</label>
+        <div class="pf-pills">
+          <button class="pf-pill active" onclick="setImportFormat('cocos')">COCOS</button>
+          <button class="pf-pill" onclick="setImportFormat('ieb')">IEB</button>
+        </div>
+        <div id="importFormatHint" style="font-size:10px;color:var(--text3);margin-top:4px;">Fecha · Tipo · Nominales · Precio · Moneda</div>
       </div>
       <div class="pf-field">
         <label>ARCHIVO CSV</label>
         <label style="border:1px dashed var(--border2);border-radius:3px;padding:14px;text-align:center;cursor:pointer;display:block;color:var(--text3);font-size:11px;" id="importDropZone">
           <div style="font-size:18px;margin-bottom:4px;">↑</div>
-          <div id="importFileName">Seleccioná el archivo CSV</div>
-          <div style="font-size:10px;margin-top:3px;">Columnas: Fecha · Tipo · Nominales · Precio · Moneda</div>
+          <div id="importFileName">Seleccioná el archivo</div>
           <input type="file" id="importFileInput" accept=".csv,.xlsx,.xls" style="display:none;" onchange="handleImportFile(event)"/>
         </label>
       </div>
@@ -1997,15 +2004,35 @@ function exportCSV(){
 }
 let importParsedRows=[];
 
+let importFormat='cocos';
+
+function setImportFormat(fmt){
+  importFormat=fmt;
+  document.querySelectorAll('#importModal .pf-pill').forEach(p=>p.classList.toggle('active',p.textContent===fmt.toUpperCase()));
+  const hints={
+    cocos:'Fecha · Tipo · Nominales · Precio · Moneda',
+    ieb:'Operación · Fecha operación · Fecha liquidación · Nro. · Precio (ARS) · Cantidad · Saldo'
+  };
+  document.getElementById('importFormatHint').textContent=hints[fmt]||'';
+  // reset file if already loaded
+  importParsedRows=[];
+  document.getElementById('importPreview').style.display='none';
+  document.getElementById('importConfirmBtn').style.display='none';
+  document.getElementById('importFileName').textContent='Seleccioná el archivo';
+  document.getElementById('importStatus').style.display='none';
+}
+
 function openImportModal(){
   document.getElementById('importTicker').value='';
   document.getElementById('importRatio').value='';
   document.getElementById('importRatioSource').textContent='';
-  document.getElementById('importFileName').textContent='Seleccioná el archivo CSV';
+  document.getElementById('importFileName').textContent='Seleccioná el archivo';
   document.getElementById('importPreview').style.display='none';
   document.getElementById('importStatus').style.display='none';
   document.getElementById('importConfirmBtn').style.display='none';
   importParsedRows=[];
+  importFormat='cocos';
+  setImportFormat('cocos');
   document.getElementById('importModal').classList.add('open');
 }
 function closeImportModal(){document.getElementById('importModal').classList.remove('open');}
@@ -2032,68 +2059,88 @@ async function handleImportFile(event){
   document.getElementById('importStatus').textContent='Leyendo archivo...';
 
   const text=await file.text();
-  // Parse CSV — handle comma or semicolon separators
   const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
   if(lines.length<2){
     document.getElementById('importStatus').textContent='Archivo vacío o inválido.';
     document.getElementById('importStatus').style.color='var(--red)';
     return;
   }
-  // Detect separator
+
+  if(importFormat==='ieb'){
+    await parseIEB(lines);
+  }else{
+    await parseCocos(lines);
+  }
+}
+
+async function parseIEB(lines){
+  // IEB format: Operación | Fecha operación | Fecha liquidación | Nro. | Precio | Cantidad | Saldo
+  // Col B = fecha operacion (index 1), Col E = precio ARS (index 4), Col F = cantidad (index 5)
+  // Skip header rows until we find a row starting with COMPRA
+  const sep=lines[0].includes(';')?';':',';
+  importParsedRows=[];
+
+  for(const line of lines){
+    const cols=line.split(sep).map(c=>c.trim().replace(/"/g,'').replace(/\./g,'').replace(/,/g,'.'));
+    const op=(cols[0]||'').toUpperCase();
+    if(!op.startsWith('COMPRA'))continue;
+    const fecha=normalizeDate(cols[1]);
+    const precio=parseFloat(cols[4]);
+    const nominales=parseFloat(cols[5]);
+    if(!fecha||isNaN(precio)||isNaN(nominales)||nominales<=0)continue;
+    importParsedRows.push({fecha:cols[1],fechaNorm:fecha,nominales,precio,moneda:'ARS',ccl:null,precioUSD:null});
+  }
+
+  await fetchCCLForRows();
+}
+
+async function parseCocos(lines){
   const sep=lines[0].includes(';')?';':',';
   const headers=lines[0].split(sep).map(h=>h.trim().toLowerCase().replace(/"/g,''));
-
-  // Find column indices — support both named and positional (Fecha,Tipo,Nominales,Precio,Moneda)
-  const fi=headers.findIndex(h=>h.includes('fecha')||h.includes('date'))??0;
-  const ni=headers.findIndex(h=>h.includes('nominal')||h.includes('cantidad')||h.includes('qty')||h.includes('shares'));
+  const fi=headers.findIndex(h=>h.includes('fecha')||h.includes('date'));
+  const ni=headers.findIndex(h=>h.includes('nominal')||h.includes('cantidad')||h.includes('qty'));
   const pi=headers.findIndex(h=>h.includes('precio')||h.includes('price'));
-  const mi=headers.findIndex(h=>h.includes('moneda')||h.includes('currency')||h.includes('curr'));
+  const mi=headers.findIndex(h=>h.includes('moneda')||h.includes('currency'));
   const ti=headers.findIndex(h=>h.includes('tipo')||h.includes('type')||h.includes('operacion'));
-
-  // Fallback to positional if named not found (Fecha=0,Tipo=1,Nominales=2,Precio=3,Moneda=4)
-  const colF=fi>=0?fi:0;
-  const colN=ni>=0?ni:2;
-  const colP=pi>=0?pi:3;
-  const colM=mi>=0?mi:4;
-  const colT=ti>=0?ti:1;
+  const colF=fi>=0?fi:0,colN=ni>=0?ni:2,colP=pi>=0?pi:3,colM=mi>=0?mi:4,colT=ti>=0?ti:1;
 
   importParsedRows=[];
   for(let i=1;i<lines.length;i++){
     const cols=lines[i].split(sep).map(c=>c.trim().replace(/"/g,''));
     if(cols.length<3)continue;
     const tipo=(cols[colT]||'').toLowerCase();
-    if(tipo&&!tipo.includes('compra')&&!tipo.includes('buy'))continue; // skip non-purchases
+    if(tipo&&!tipo.includes('compra')&&!tipo.includes('buy'))continue;
     const fecha=cols[colF];
     const nominales=parseFloat(cols[colN]);
     const precio=parseFloat(cols[colP]);
     const moneda=(cols[colM]||'USD').toUpperCase().trim();
     if(isNaN(nominales)||isNaN(precio)||!fecha)continue;
-    importParsedRows.push({fecha,nominales,precio,moneda,ccl:null,precioUSD:null});
+    importParsedRows.push({fecha,fechaNorm:normalizeDate(fecha),nominales,precio,moneda,ccl:null,precioUSD:null});
   }
 
+  await fetchCCLForRows();
+}
+
+async function fetchCCLForRows(){
   if(!importParsedRows.length){
     document.getElementById('importStatus').textContent='No se encontraron compras válidas.';
     document.getElementById('importStatus').style.color='var(--red)';
     return;
   }
 
-  document.getElementById('importStatus').textContent=`Obteniendo tipos de cambio para ${importParsedRows.filter(r=>r.moneda==='ARS').length} filas en ARS...`;
+  const arsRows=importParsedRows.filter(r=>r.moneda==='ARS');
+  document.getElementById('importStatus').textContent=
+    arsRows.length?`Obteniendo CCL para ${arsRows.length} fila${arsRows.length!==1?'s':''} en ARS...`:'Procesando...';
   document.getElementById('importStatus').style.color='var(--amber)';
 
-  // Fetch CCL for each unique date with ARS
-  const uniqueDates=[...new Set(importParsedRows.filter(r=>r.moneda==='ARS').map(r=>r.fecha))];
+  const uniqueDates=[...new Set(arsRows.map(r=>r.fechaNorm).filter(Boolean))];
   const cclCache={};
-  await Promise.all(uniqueDates.map(async fecha=>{
-    // normalize date to YYYY-MM-DD
-    const norm=normalizeDate(fecha);
-    if(norm)cclCache[fecha]=await fetchCCL(norm);
-  }));
+  await Promise.all(uniqueDates.map(async d=>{cclCache[d]=await fetchCCL(d);}));
 
-  // Assign CCL and convert
   const ratio=parseFloat(document.getElementById('importRatio').value)||1;
   for(const r of importParsedRows){
     if(r.moneda==='ARS'){
-      r.ccl=cclCache[r.fecha]||null;
+      r.ccl=cclCache[r.fechaNorm]||null;
       r.precioUSD=r.ccl?+(r.precio/r.ccl).toFixed(4):null;
     }else{
       r.precioUSD=r.precio;
