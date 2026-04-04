@@ -1803,19 +1803,22 @@ function updateUSDCost(){
 async function fetchCCL(dateStr){
   const tryDate=async(d)=>{
     try{
-      const[y,m,dd]=d.split('-');
-      const data=await proxyFetch(`https://dolarapi.com/v1/historico/dolares/contadoconliqui/${y}/${m}/${dd}`);
+      // argentinadatos.com — formato: YYYY/MM/DD
+      const fmt=d.replace(/-/g,'/');
+      const data=await proxyFetch(`https://api.argentinadatos.com/v1/cotizaciones/dolares/contadoconliqui/${fmt}`);
+      // returns {casa, compra, venta, fecha} as object OR array
       if(Array.isArray(data)&&data.length){
         const venta=data[data.length-1].venta??data[data.length-1].compra;
         if(venta)return parseFloat(venta);
       }
       if(data?.venta)return parseFloat(data.venta);
+      if(data?.compra)return parseFloat(data.compra);
     }catch(e){}
     return null;
   };
 
   if(dateStr){
-    // Try the exact date first, then walk back up to 7 days to find nearest business day
+    // Try exact date, then walk back up to 7 days to find nearest business day
     const base=new Date(dateStr+'T12:00:00Z');
     for(let i=0;i<=7;i++){
       const d=new Date(base);
@@ -1826,7 +1829,7 @@ async function fetchCCL(dateStr){
     }
   }
 
-  // Last resort: today's live rate
+  // Last resort: today's live rate from dolarapi
   try{
     const data=await proxyFetch('https://dolarapi.com/v1/dolares/contadoconliqui');
     if(data?.venta)return parseFloat(data.venta);
