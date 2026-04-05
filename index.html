@@ -1736,44 +1736,82 @@ function buildEcoHtml(d){
 
 // ── DETAIL & FULLSCREEN ──
 async function fetchTargets(ticker){
-  // 1. Yahoo consensus (mean/high/low/count)
+  // 1. Yahoo v8 for consensus targets (already proxied)
   let consensus={mean:null,high:null,low:null,count:null,rec:null};
   try{
-    const url=`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=financialData`;
+    const url=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d&includePrePost=false`;
     const data=await proxyFetch(url);
-    const fd=data?.quoteSummary?.result?.[0]?.financialData;
-    if(fd){
-      consensus.mean=fd.targetMeanPrice?.raw??null;
-      consensus.high=fd.targetHighPrice?.raw??null;
-      consensus.low=fd.targetLowPrice?.raw??null;
-      consensus.count=fd.numberOfAnalystOpinions?.raw??null;
-      consensus.rec=fd.recommendationKey??null;
-    }
+    const meta=data?.chart?.result?.[0]?.meta;
+    // Yahoo v8 meta has some analyst data
+    if(meta?.targetPriceMean)consensus.mean=meta.targetPriceMean;
   }catch(e){}
 
-  // 2. Finviz ratings page for individual analyst targets
+  // Fallback: Yahoo v11 quoteSummary (sometimes works)
+  if(!consensus.mean){
+    try{
+      const data=await proxyFetch(`https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=financialData&corsDomain=finance.yahoo.com&formatted=false`);
+      const fd=data?.quoteSummary?.result?.[0]?.financialData;
+      if(fd){
+        consensus.mean=fd.targetMeanPrice?.raw??fd.targetMeanPrice??null;
+        consensus.high=fd.targetHighPrice?.raw??fd.targetHighPrice??null;
+        consensus.low=fd.targetLowPrice?.raw??fd.targetLowPrice??null;
+        consensus.count=fd.numberOfAnalystOpinions?.raw??fd.numberOfAnalystOpinions??null;
+        consensus.rec=fd.recommendationKey??null;
+      }
+    }catch(e){}
+  }
+
+  // Also get target from Finviz main page (already fetched — parse from fvNum)
+  if(!consensus.mean){
+    try{
+      const furl=`https://finviz.com/quote.ashx?t=${encodeURIComponent(ticker)}&ty=c&ta=1&p=d`;
+      const raw=await proxyFetch(furl);
+      const htmlStr=typeof raw==='string'?raw:JSON.stringify(raw);
+      const tgt=fvNum(htmlStr,'Target Price');
+      const recStr=fvNum(htmlStr,'Recom')||fvNum(htmlStr,'Recomm');
+      if(tgt)consensus.mean=tgt;
+      // Parse rec text
+      const recRe=/<td[^>]*>(?:<[^>]+>)*\s*Recom(?:m(?:endation)?)?\s*(?:<\/[^>]+>)*\s*<\/td>\s*<td[^>]*>([^<]*)/i;
+      const recM=htmlStr.match(recRe);
+      if(recM){
+        const rv=parseFloat(recM[1]);
+        if(!isNaN(rv)){
+          if(rv<=1.5)consensus.rec='strongbuy';
+          else if(rv<=2.5)consensus.rec='buy';
+          else if(rv<=3.5)consensus.rec='hold';
+          else if(rv<=4.5)consensus.rec='sell';
+          else consensus.rec='strongsell';
+        }
+      }
+    }catch(e){}
+  }
+
+  // 2. Individual ratings from Finviz outer-ratings table (ty=c page)
   const ratings=[];
   try{
-    const url=`https://finviz.com/quote.ashx?t=${encodeURIComponent(ticker)}&ty=si&ta=1&p=d`;
-    const html=await finvizFetch(ticker+'&ty=si&ta=1&p=d').catch(()=>null);
-    // finvizFetch builds its own URL, use proxyFetch directly
-    const furl=`https://finviz.com/quote.ashx?t=${encodeURIComponent(ticker)}&ty=si`;
-    const raw=await proxyFetch(furl).catch(()=>null);
+    const furl=`https://finviz.com/quote.ashx?t=${encodeURIComponent(ticker)}&ty=c&ta=1&p=d`;
+    const raw=await proxyFetch(furl);
     const htmlStr=typeof raw==='string'?raw:JSON.stringify(raw);
-    // Parse ratings table: Date | Action | Analyst | Rating | Price Target
-    const rowRe=/<tr[^>]*>\s*<td[^>]*>([\d\/]+)<\/td>\s*<td[^>]*>([^<]*)<\/td>\s*<td[^>]*>([^<]*)<\/td>\s*<td[^>]*>([^<]*)<\/td>\s*<td[^>]*>([^<]*)<\/td>/g;
-    let m;
-    while((m=rowRe.exec(htmlStr))!==null&&ratings.length<12){
-      const[,date,action,analyst,rating,pt]=m;
-      if(!date||!analyst||analyst.trim()===''||analyst.trim()==='-')continue;
-      const ptNum=parseFloat(pt.replace(/[^0-9.]/g,''));
-      ratings.push({
-        date:date.trim(),
-        action:action.trim(),
-        analyst:analyst.trim(),
-        rating:rating.trim(),
-        pt:isNaN(ptNum)?null:ptNum
-      });
+    // Ratings table rows: each row has Date | Action | Analyst | Rating | Price Target
+    // Finviz wraps them in table with class "fullview-ratings-outer" or similar
+    const rowRe=/<tr[^>]*>\s*<td[^>]*class="[^"]*rating[^"]*"[^>]*>([\s\S]*?)<\/tr>/gi;
+    let rm;
+    while((rm=rowRe.exec(htmlStr))!==null&&ratings.length<15){
+      const cells=[];
+      const cellRe=/<td[^>]*>([\s\S]*?)<\/td>/g;
+      let cm;
+      while((cm=cellRe.exec(rm[1]))!==null){
+        cells.push(cm[1].replace(/<[^>]+>/g,'').trim());
+      }
+      if(cells.length>=4&&cells[0].match(/\d{2}\/\d{2}\/\d{4}/)){
+        const ptNum=cells[4]?parseFloat(cells[4].replace(/[^0-9.→\-]/g,'')):null;
+        // price target might be "120 → 150" format
+        const ptMatch=cells[4]?.match(/→\s*\$?([\d.]+)/)||cells[4]?.match(/^\$?([\d.]+)$/);
+        const pt=ptMatch?parseFloat(ptMatch[1]):(isNaN(ptNum)?null:ptNum);
+        if(cells[2]&&cells[2]!=='-'){
+          ratings.push({date:cells[0],action:cells[1]||'',analyst:cells[2],rating:cells[3]||'',pt:pt||null});
+        }
+      }
     }
   }catch(e){}
 
