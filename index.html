@@ -1736,82 +1736,59 @@ function buildEcoHtml(d){
 
 // ── DETAIL & FULLSCREEN ──
 async function fetchTargets(ticker){
-  // 1. Yahoo v8 for consensus targets (already proxied)
   let consensus={mean:null,high:null,low:null,count:null,rec:null};
-  try{
-    const url=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d&includePrePost=false`;
-    const data=await proxyFetch(url);
-    const meta=data?.chart?.result?.[0]?.meta;
-    // Yahoo v8 meta has some analyst data
-    if(meta?.targetPriceMean)consensus.mean=meta.targetPriceMean;
-  }catch(e){}
-
-  // Fallback: Yahoo v11 quoteSummary (sometimes works)
-  if(!consensus.mean){
-    try{
-      const data=await proxyFetch(`https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=financialData&corsDomain=finance.yahoo.com&formatted=false`);
-      const fd=data?.quoteSummary?.result?.[0]?.financialData;
-      if(fd){
-        consensus.mean=fd.targetMeanPrice?.raw??fd.targetMeanPrice??null;
-        consensus.high=fd.targetHighPrice?.raw??fd.targetHighPrice??null;
-        consensus.low=fd.targetLowPrice?.raw??fd.targetLowPrice??null;
-        consensus.count=fd.numberOfAnalystOpinions?.raw??fd.numberOfAnalystOpinions??null;
-        consensus.rec=fd.recommendationKey??null;
-      }
-    }catch(e){}
-  }
-
-  // Also get target from Finviz main page (already fetched — parse from fvNum)
-  if(!consensus.mean){
-    try{
-      const furl=`https://finviz.com/quote.ashx?t=${encodeURIComponent(ticker)}&ty=c&ta=1&p=d`;
-      const raw=await proxyFetch(furl);
-      const htmlStr=typeof raw==='string'?raw:JSON.stringify(raw);
-      const tgt=fvNum(htmlStr,'Target Price');
-      const recStr=fvNum(htmlStr,'Recom')||fvNum(htmlStr,'Recomm');
-      if(tgt)consensus.mean=tgt;
-      // Parse rec text
-      const recRe=/<td[^>]*>(?:<[^>]+>)*\s*Recom(?:m(?:endation)?)?\s*(?:<\/[^>]+>)*\s*<\/td>\s*<td[^>]*>([^<]*)/i;
-      const recM=htmlStr.match(recRe);
-      if(recM){
-        const rv=parseFloat(recM[1]);
-        if(!isNaN(rv)){
-          if(rv<=1.5)consensus.rec='strongbuy';
-          else if(rv<=2.5)consensus.rec='buy';
-          else if(rv<=3.5)consensus.rec='hold';
-          else if(rv<=4.5)consensus.rec='sell';
-          else consensus.rec='strongsell';
-        }
-      }
-    }catch(e){}
-  }
-
-  // 2. Individual ratings from Finviz outer-ratings table (ty=c page)
   const ratings=[];
+
   try{
     const furl=`https://finviz.com/quote.ashx?t=${encodeURIComponent(ticker)}&ty=c&ta=1&p=d`;
     const raw=await proxyFetch(furl);
-    const htmlStr=typeof raw==='string'?raw:JSON.stringify(raw);
-    // Ratings table rows: each row has Date | Action | Analyst | Rating | Price Target
-    // Finviz wraps them in table with class "fullview-ratings-outer" or similar
-    const rowRe=/<tr[^>]*>\s*<td[^>]*class="[^"]*rating[^"]*"[^>]*>([\s\S]*?)<\/tr>/gi;
-    let rm;
-    while((rm=rowRe.exec(htmlStr))!==null&&ratings.length<15){
-      const cells=[];
-      const cellRe=/<td[^>]*>([\s\S]*?)<\/td>/g;
-      let cm;
-      while((cm=cellRe.exec(rm[1]))!==null){
-        cells.push(cm[1].replace(/<[^>]+>/g,'').trim());
+    const html=typeof raw==='string'?raw:JSON.stringify(raw);
+
+    // 1. Consensus target price from snapshot table
+    const tgtM=html.match(/<td[^>]*>(?:<[^>]+>)*\s*Target Price\s*(?:<\/[^>]+>)*\s*<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/i);
+    if(tgtM){
+      const tgtRaw=tgtM[1].replace(/<[^>]+>/g,'').trim();
+      const n=parseFloat(tgtRaw.replace(/[^0-9.]/g,''));
+      if(!isNaN(n))consensus.mean=n;
+    }
+
+    // Recommendation score (1=strong buy … 5=strong sell)
+    const recM=html.match(/<td[^>]*>(?:<[^>]+>)*\s*Recom(?:m)?\s*(?:<\/[^>]+>)*\s*<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/i);
+    if(recM){
+      const rv=parseFloat(recM[1].replace(/<[^>]+>/g,'').trim());
+      if(!isNaN(rv)){
+        if(rv<=1.5)consensus.rec='strongbuy';
+        else if(rv<=2.5)consensus.rec='buy';
+        else if(rv<=3.5)consensus.rec='hold';
+        else if(rv<=4.5)consensus.rec='sell';
+        else consensus.rec='strongsell';
       }
-      if(cells.length>=4&&cells[0].match(/\d{2}\/\d{2}\/\d{4}/)){
-        const ptNum=cells[4]?parseFloat(cells[4].replace(/[^0-9.→\-]/g,'')):null;
-        // price target might be "120 → 150" format
-        const ptMatch=cells[4]?.match(/→\s*\$?([\d.]+)/)||cells[4]?.match(/^\$?([\d.]+)$/);
-        const pt=ptMatch?parseFloat(ptMatch[1]):(isNaN(ptNum)?null:ptNum);
-        if(cells[2]&&cells[2]!=='-'){
-          ratings.push({date:cells[0],action:cells[1]||'',analyst:cells[2],rating:cells[3]||'',pt:pt||null});
+    }
+
+    // 2. Individual ratings — embedded as JSON array in the page
+    // Format: {"dateTimestamp":N,"eventType":"chartEvent/ratings","ratings":[{...}]}
+    const jsonRe=/"eventType":"chartEvent\/ratings","ratings":(\[[\s\S]*?\])/g;
+    let jm;
+    while((jm=jsonRe.exec(html))!==null&&ratings.length<15){
+      try{
+        const block=JSON.parse(jm[1]);
+        for(const r of block){
+          if(!r.analyst)continue;
+          // targetPrice may be "$300" or "$270 → $300" — take the last number
+          let pt=null;
+          if(r.targetPrice){
+            const nums=r.targetPrice.replace(/&[a-z]+;/g,' ').match(/\$?([\d.]+)/g);
+            if(nums&&nums.length)pt=parseFloat(nums[nums.length-1].replace('$',''));
+          }
+          ratings.push({
+            date:r.dateTimestamp?new Date(r.dateTimestamp*1000).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}):'-',
+            action:(r.action||'').replace(/&[a-z]+;/g,' ').replace(/\s+/g,' ').trim(),
+            analyst:(r.analyst||'').replace(/&amp;/g,'&').trim(),
+            rating:(r.rating||'').replace(/&[a-z]+;/g,'→').replace(/\s+/g,' ').trim(),
+            pt:isNaN(pt)?null:pt
+          });
         }
-      }
+      }catch(e){}
     }
   }catch(e){}
 
