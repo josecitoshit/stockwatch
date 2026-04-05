@@ -680,6 +680,8 @@ BRKB`.split('\n').map(t=>t.trim()).filter(Boolean).slice(0,100);
 
 let tickers=[...DEFAULT_TICKERS],stockData={},loading=false,selectedTicker=null;
 let sortKey='chgPct',sortDir='desc';
+let pfPositions=JSON.parse(localStorage.getItem('pf_positions')||'[]');
+let realizedEvents=JSON.parse(localStorage.getItem('pf_realized')||'[]');
 
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 async function withLimit(tasks,limit=3){
@@ -1933,7 +1935,6 @@ function setPfChartMode(mode){
   });
   renderLineChart();
 }
-let realizedEvents=JSON.parse(localStorage.getItem('pf_realized')||'[]');
 function saveRealized(){localStorage.setItem('pf_realized',JSON.stringify(realizedEvents));}
 
 // ── DIVIDEND MODAL ──
@@ -2117,7 +2118,6 @@ function switchTab(tab){
 }
 
 // ── PORTFOLIO STATE ──
-let pfPositions=JSON.parse(localStorage.getItem('pf_positions')||'[]');
 let pfCharts={pie:null,line:null};
 
 function savePf(){localStorage.setItem('pf_positions',JSON.stringify(pfPositions));}
