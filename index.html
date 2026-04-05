@@ -196,7 +196,17 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 .pf-sort-icon.desc::after{content:'↓';color:var(--green);}
 .pf-charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
 .pf-chart-box{background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:14px;}
-.pf-pills{display:flex;gap:6px;margin-bottom:2px;}
+.targets-hdr{font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.1em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between;}
+.targets-consensus{display:flex;gap:14px;margin-bottom:12px;flex-wrap:wrap;}
+.tc{background:var(--bg3);border-radius:3px;padding:7px 12px;border:1px solid var(--border2);}
+.tc-lbl{font-size:9px;color:var(--text3);letter-spacing:.08em;margin-bottom:3px;}
+.tc-val{font-size:14px;font-weight:700;}
+.targets-table{width:100%;border-collapse:collapse;font-size:11px;}
+.targets-table th{padding:5px 8px;text-align:left;font-size:10px;color:var(--text3);border-bottom:1px solid var(--border2);letter-spacing:.06em;}
+.targets-table th:last-child{text-align:right;}
+.targets-table td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.04);color:var(--text2);}
+.targets-table td:last-child{text-align:right;font-weight:700;}
+.targets-table tr:hover td{background:var(--bg3);}
 .pf-pill{padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.06em;cursor:pointer;border:1px solid var(--border2);color:var(--text3);background:transparent;font-family:var(--mono);transition:all .15s;}
 .pf-pill.active{border-color:var(--green);color:var(--green);background:var(--green-bg);}
 
@@ -332,6 +342,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
         <div class="d-52w" id="d52w"></div>
       </div>
       <div class="fg" id="dFund"></div>
+      <div id="dTargets" style="margin-top:14px;"></div>
       <div id="dEco"><div class="loading-msg">Seleccioná un ticker para ver el análisis</div></div>
     </div>
   </div>
@@ -1724,6 +1735,97 @@ function buildEcoHtml(d){
 }
 
 // ── DETAIL & FULLSCREEN ──
+async function fetchTargets(ticker){
+  // 1. Yahoo consensus (mean/high/low/count)
+  let consensus={mean:null,high:null,low:null,count:null,rec:null};
+  try{
+    const url=`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=financialData`;
+    const data=await proxyFetch(url);
+    const fd=data?.quoteSummary?.result?.[0]?.financialData;
+    if(fd){
+      consensus.mean=fd.targetMeanPrice?.raw??null;
+      consensus.high=fd.targetHighPrice?.raw??null;
+      consensus.low=fd.targetLowPrice?.raw??null;
+      consensus.count=fd.numberOfAnalystOpinions?.raw??null;
+      consensus.rec=fd.recommendationKey??null;
+    }
+  }catch(e){}
+
+  // 2. Finviz ratings page for individual analyst targets
+  const ratings=[];
+  try{
+    const url=`https://finviz.com/quote.ashx?t=${encodeURIComponent(ticker)}&ty=si&ta=1&p=d`;
+    const html=await finvizFetch(ticker+'&ty=si&ta=1&p=d').catch(()=>null);
+    // finvizFetch builds its own URL, use proxyFetch directly
+    const furl=`https://finviz.com/quote.ashx?t=${encodeURIComponent(ticker)}&ty=si`;
+    const raw=await proxyFetch(furl).catch(()=>null);
+    const htmlStr=typeof raw==='string'?raw:JSON.stringify(raw);
+    // Parse ratings table: Date | Action | Analyst | Rating | Price Target
+    const rowRe=/<tr[^>]*>\s*<td[^>]*>([\d\/]+)<\/td>\s*<td[^>]*>([^<]*)<\/td>\s*<td[^>]*>([^<]*)<\/td>\s*<td[^>]*>([^<]*)<\/td>\s*<td[^>]*>([^<]*)<\/td>/g;
+    let m;
+    while((m=rowRe.exec(htmlStr))!==null&&ratings.length<12){
+      const[,date,action,analyst,rating,pt]=m;
+      if(!date||!analyst||analyst.trim()===''||analyst.trim()==='-')continue;
+      const ptNum=parseFloat(pt.replace(/[^0-9.]/g,''));
+      ratings.push({
+        date:date.trim(),
+        action:action.trim(),
+        analyst:analyst.trim(),
+        rating:rating.trim(),
+        pt:isNaN(ptNum)?null:ptNum
+      });
+    }
+  }catch(e){}
+
+  return{consensus,ratings};
+}
+
+function renderTargets(container,ticker,price,data){
+  const{consensus,ratings}=data;
+  const recColor={'strongbuy':'var(--green)','buy':'var(--green)','hold':'var(--amber)','sell':'var(--red)','strongsell':'var(--red)'};
+  const recLabel={'strongbuy':'STRONG BUY','buy':'BUY','hold':'HOLD','sell':'SELL','strongsell':'STRONG SELL'};
+  const upside=consensus.mean&&price?((consensus.mean/price-1)*100):null;
+
+  let html=`<div class="targets-hdr"><span>// PRICE TARGETS &amp; RATINGS</span>`;
+  if(consensus.count)html+=`<span style="color:var(--text3);font-weight:400;">${consensus.count} analistas</span>`;
+  html+=`</div>`;
+
+  // Consensus cards
+  if(consensus.mean||consensus.rec){
+    html+=`<div class="targets-consensus">`;
+    if(consensus.rec)html+=`<div class="tc"><div class="tc-lbl">CONSENSO</div><div class="tc-val" style="color:${recColor[consensus.rec]||'var(--text2)'};">${recLabel[consensus.rec]||consensus.rec.toUpperCase()}</div></div>`;
+    if(consensus.mean)html+=`<div class="tc"><div class="tc-lbl">TARGET PROMEDIO</div><div class="tc-val" style="color:${upside>=0?'var(--green)':'var(--red)'};">$${consensus.mean.toFixed(2)} <span style="font-size:11px;">(${upside>=0?'+':''}${upside?.toFixed(1)}%)</span></div></div>`;
+    if(consensus.low)html+=`<div class="tc"><div class="tc-lbl">TARGET BAJO</div><div class="tc-val">$${consensus.low.toFixed(2)}</div></div>`;
+    if(consensus.high)html+=`<div class="tc"><div class="tc-lbl">TARGET ALTO</div><div class="tc-val">$${consensus.high.toFixed(2)}</div></div>`;
+    html+=`</div>`;
+  }
+
+  // Individual ratings
+  if(ratings.length){
+    html+=`<table class="targets-table">
+      <thead><tr><th>FECHA</th><th>ACCIÓN</th><th>ANALISTA</th><th>RATING</th><th>TARGET</th></tr></thead>
+      <tbody>`;
+    for(const r of ratings){
+      const isUp=r.action.toLowerCase().includes('upgrade')||r.action.toLowerCase().includes('initiated')||r.action.toLowerCase().includes('reiterated buy');
+      const isDn=r.action.toLowerCase().includes('downgrade');
+      const actColor=isUp?'var(--green)':isDn?'var(--red)':'var(--text3)';
+      const ptUpside=r.pt&&price?((r.pt/price-1)*100):null;
+      const ptColor=ptUpside===null?'var(--text2)':ptUpside>=0?'var(--green)':'var(--red)';
+      html+=`<tr>
+        <td style="color:var(--text3);">${r.date}</td>
+        <td style="color:${actColor};font-size:10px;">${r.action||'—'}</td>
+        <td style="font-weight:500;color:#fff;">${r.analyst}</td>
+        <td style="color:var(--text3);">${r.rating||'—'}</td>
+        <td style="color:${ptColor};">${r.pt?'$'+r.pt.toFixed(2)+(ptUpside!==null?' <span style="font-size:10px;">('+( ptUpside>=0?'+':'')+ptUpside.toFixed(1)+'%)</span>':''):'—'}</td>
+      </tr>`;
+    }
+    html+=`</tbody></table>`;
+  }else{
+    html+=`<div style="font-size:11px;color:var(--text3);padding:8px 0;">Sin ratings individuales disponibles</div>`;
+  }
+
+  container.innerHTML=html;
+}
 function openDetail(ticker){
   selectedTicker=ticker;renderTable();
   const d=stockData[ticker];if(!d||!d.loaded)return;
@@ -1743,6 +1845,12 @@ function openDetail(ticker){
   document.getElementById('dEco').innerHTML=d.ecoReady
     ? buildEcoHtml(d)
     : '<div class="loading-msg" style="color:var(--amber);">⏳ Calculando análisis econométrico...</div>';
+  // Price targets — load async
+  const targetsEl=document.getElementById('dTargets');
+  targetsEl.innerHTML='<div style="font-size:11px;color:var(--text3);padding:6px 0;">⏳ Cargando price targets...</div>';
+  fetchTargets(ticker).then(data=>renderTargets(targetsEl,ticker,d.price,data)).catch(()=>{
+    targetsEl.innerHTML='<div style="font-size:11px;color:var(--text3);">Sin datos de price targets</div>';
+  });
 }
 function openFullscreen(){
   const d=stockData[selectedTicker];if(!d||!d.loaded)return;
