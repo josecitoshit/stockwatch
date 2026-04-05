@@ -871,6 +871,17 @@ function fvNum(html,label){
   if(v==='-'||v===''||v==='N/A')return null;
   return parseFloat(v);
 }
+function fvShortFloat(html){
+  // Finviz format: <td ...><a ...>Short Float</a></td><td ...>5.23%</td>
+  const re=/<td[^>]*>(?:<[^>]+>)*\s*Short Float\s*(?:<\/[^>]+>)*\s*<\/td>\s*<td[^>]*>([^<]*)</i;
+  const m=html.match(re);
+  if(m){
+    const raw=m[1].trim().replace('%','');
+    const n=parseFloat(raw);
+    if(!isNaN(n))return n;
+  }
+  return null;
+}
 function fvDivYield(html){
   const re=/<td[^>]*>\s*(?:<a[^>]*>)?\s*Dividend TTM\s*(?:<\/a>)?\s*<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/i;
   const m=html.match(re);
@@ -904,7 +915,7 @@ function parseFV(html){
   const marketCap=parseMarketCap(html);
   const pfcf=fvNum(html,'P\\/FCF');
   const fcfYield=(pfcf&&pfcf>0)?(1/pfcf)*100:null;
-  const shortFloat=fvNum(html,'Short Float')||fvNum(html,'Shs Float')||null;
+  const shortFloat=fvShortFloat(html);
   return{pe,pb,eps,roe,roa,divYield,marketCap,fcfYield,shortFloat};
 }
 async function yahooFetch(ticker){
@@ -1421,11 +1432,12 @@ async function startLoad(){
       const fcfYield=pick(fv.fcfYield,poly.fcfYield);
       const divYield=pick(fv.divYield);
       const marketCap=pick(fv.marketCap,poly.marketCap);
+      const shortFloat=fv.shortFloat??null;
 
       stockData[ticker]={
         ticker,price,chg,chgPct,high52,low52,distHigh52,distLow52,
         sma20W,sma20WDev,sma200W,sma200WDev,vsSP500,
-        pe,pb,roe,roa,fcfYield,divYield,eps,marketCap,
+        pe,pb,roe,roa,fcfYield,divYield,eps,marketCap,shortFloat,
         rsiW:last(rsiWA),macdW:last(macdWO.macd),macdSigW:last(macdWO.signal),
         wCloses:wc,wTimestamps:wk.t,sharesOutstanding,
         rallies:null,drops:null,situation:null, // eco pending
