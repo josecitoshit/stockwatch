@@ -252,6 +252,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 <div id="tabbar">
   <div class="tab active" id="tab-dashboard" onclick="switchTab('dashboard')">DASHBOARD</div>
   <div class="tab" id="tab-portfolio" onclick="switchTab('portfolio')">PORTFOLIO</div>
+  <div class="tab" id="tab-balance" onclick="switchTab('balance')">BALANCE</div>
 </div>
 
 <div id="filterbar">
@@ -428,6 +429,45 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
     </tr></thead>
     <tbody id="pfTbody"><tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr></tbody>
   </table>
+</div>
+
+</div>
+
+<div id="balanceView" style="display:none;position:fixed;left:0;right:0;bottom:0;overflow-y:auto;background:var(--bg);padding:24px 32px;">
+
+  <!-- Summary cards -->
+  <div id="balSummary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px;"></div>
+
+  <!-- Charts row -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:22px;">
+    <div class="pf-chart-box">
+      <div class="pf-chart-title">PATRIMONIO NETO (USD)</div>
+      <div style="height:220px;position:relative;"><canvas id="balLineChart"></canvas></div>
+    </div>
+    <div class="pf-chart-box">
+      <div class="pf-chart-title">VARIACIÓN MENSUAL (USD)</div>
+      <div style="height:220px;position:relative;"><canvas id="balBarChart"></canvas></div>
+    </div>
+  </div>
+  <div class="pf-chart-box" style="margin-bottom:22px;">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px;">
+      <div class="pf-chart-title" style="margin:0;">COMPOSICIÓN DEL ACTIVO (USD)</div>
+      <div style="display:flex;gap:8px;margin-left:auto;">
+        <button onclick="setBalStack('usd')" id="balStackUSD" class="btn" style="padding:3px 8px;font-size:10px;color:var(--green);border-color:var(--green);">USD</button>
+        <button onclick="setBalStack('ars')" id="balStackARS" class="btn" style="padding:3px 8px;font-size:10px;">ARS</button>
+      </div>
+    </div>
+    <div style="height:200px;position:relative;"><canvas id="balStackChart"></canvas></div>
+  </div>
+
+  <!-- Table -->
+  <div style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.1em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border2);">// HISTORIAL MENSUAL</div>
+  <div style="overflow-x:auto;">
+    <table id="balTable" style="width:100%;border-collapse:collapse;font-size:11px;white-space:nowrap;">
+      <thead id="balThead"></thead>
+      <tbody id="balTbody"></tbody>
+    </table>
+  </div>
 </div>
 
 <div id="importModal">
@@ -646,6 +686,32 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
           <th style="padding:6px 10px;text-align:right;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);">TOTAL</th>
         </tr></thead>
         <tbody id="realizedBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- TICKER HISTORY PANEL -->
+<div id="tickerHistoryPanel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:100;align-items:center;justify-content:center;">
+  <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:3px;width:660px;max-width:95vw;max-height:82vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border2);flex-shrink:0;">
+      <div>
+        <h2 id="thpTitle" style="font-size:13px;font-weight:700;color:var(--green);letter-spacing:.08em;"></h2>
+        <div id="thpSub" style="font-size:11px;color:var(--text3);margin-top:3px;"></div>
+      </div>
+      <button onclick="closeTickerHistory()" style="background:transparent;border:1px solid var(--border2);color:var(--text3);border-radius:3px;padding:4px 12px;cursor:pointer;font-family:var(--mono);font-size:11px;">✕</button>
+    </div>
+    <div style="overflow-y:auto;padding:16px 20px;flex:1;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr>
+          <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);letter-spacing:.07em;white-space:nowrap;">FECHA</th>
+          <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);">TIPO</th>
+          <th style="padding:6px 10px;text-align:right;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);">CEDEARs</th>
+          <th style="padding:6px 10px;text-align:right;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);">PRECIO USD/CEDEAR</th>
+          <th style="padding:6px 10px;text-align:right;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);">TOTAL USD</th>
+          <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);">NOTAS</th>
+        </tr></thead>
+        <tbody id="thpBody"></tbody>
       </table>
     </div>
   </div>
@@ -2083,6 +2149,85 @@ function setDivCurrency(cur){
   document.getElementById('divUSDDisplay').textContent='—';
 }
 
+function openTickerHistory(ticker){
+  document.getElementById('thpTitle').textContent='// '+ticker+' — HISTORIAL DE MOVIMIENTOS';
+
+  // Gather all events for this ticker
+  const events=[];
+
+  // Compras (from pfPositions)
+  for(const p of pfPositions.filter(p=>p.ticker===ticker)){
+    const priceUSD=p.cost; // cost per CEDEAR in USD
+    const totalUSD=priceUSD*(p.cedears||p.shares*(p.ratio||1));
+    events.push({
+      date:p.date,
+      type:'compra',
+      cedears:p.cedears??null,
+      priceUSD,
+      totalUSD,
+      notes:''
+    });
+  }
+
+  // Ventas y dividendos (from realizedEvents)
+  for(const e of realizedEvents.filter(e=>e.ticker===ticker)){
+    if(e.type==='venta'){
+      events.push({
+        date:e.date,
+        type:'venta',
+        cedears:e.cedears??null,
+        priceUSD:e.pricePerCedearUSD??null,
+        totalUSD:e.amtUSD,
+        notes:e.notes||''
+      });
+    }else if(e.type==='dividendo'){
+      events.push({
+        date:e.date,
+        type:'dividendo',
+        cedears:null,
+        priceUSD:null,
+        totalUSD:e.amtUSD,
+        notes:e.notes||''
+      });
+    }
+  }
+
+  // Sort by date desc
+  events.sort((a,b)=>b.date.localeCompare(a.date));
+
+  // Summary
+  const totalComprado=events.filter(e=>e.type==='compra').reduce((a,e)=>a+(e.totalUSD||0),0);
+  const totalVendido=events.filter(e=>e.type==='venta').reduce((a,e)=>a+(e.totalUSD||0),0);
+  const totalDividendos=events.filter(e=>e.type==='dividendo').reduce((a,e)=>a+(e.totalUSD||0),0);
+  document.getElementById('thpSub').innerHTML=
+    `<span style="color:var(--text2);">Invertido: <b style="color:#fff;">$${totalComprado.toFixed(2)}</b></span>`+
+    (totalVendido?` &nbsp;·&nbsp; <span style="color:var(--text2);">Vendido: <b style="color:var(--green);">$${totalVendido.toFixed(2)}</b></span>`:'') +
+    (totalDividendos?` &nbsp;·&nbsp; <span style="color:var(--text2);">Dividendos: <b style="color:var(--blue);">$${totalDividendos.toFixed(2)}</b></span>`:'');
+
+  const typeCfg={
+    compra: {label:'COMPRA',   color:'var(--green)', bg:'rgba(0,255,136,0.1)'},
+    venta:  {label:'VENTA',    color:'var(--amber)', bg:'rgba(255,187,0,0.1)'},
+    dividendo:{label:'DIVIDENDO',color:'var(--blue)', bg:'rgba(51,187,255,0.12)'},
+  };
+
+  document.getElementById('thpBody').innerHTML=events.length
+    ? events.map(e=>{
+        const cfg=typeCfg[e.type]||typeCfg.compra;
+        return`<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+          <td style="padding:8px 10px;color:var(--text3);">${e.date}</td>
+          <td style="padding:8px 10px;"><span style="padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;letter-spacing:.05em;background:${cfg.bg};color:${cfg.color};">${cfg.label}</span></td>
+          <td style="padding:8px 10px;text-align:right;color:var(--text2);">${e.cedears!=null?e.cedears:'—'}</td>
+          <td style="padding:8px 10px;text-align:right;color:var(--text2);">${e.priceUSD!=null?'$'+e.priceUSD.toFixed(4):'—'}</td>
+          <td style="padding:8px 10px;text-align:right;font-weight:700;color:${e.type==='compra'?'var(--text2)':e.totalUSD>=0?'var(--green)':'var(--red)'};">${e.type==='compra'?'-':'+'}&nbsp;$${Math.abs(e.totalUSD).toFixed(2)}</td>
+          <td style="padding:8px 10px;color:var(--text3);font-size:11px;">${e.notes||'—'}</td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text3);">Sin movimientos registrados</td></tr>';
+
+  document.getElementById('tickerHistoryPanel').style.display='flex';
+}
+function closeTickerHistory(){document.getElementById('tickerHistoryPanel').style.display='none';}
+
 function openDivModal(){
   document.getElementById('divTicker').value='';
   document.getElementById('divDate').value=new Date().toISOString().slice(0,10);
@@ -2238,21 +2383,251 @@ function switchTab(tab){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
   const isDash=tab==='dashboard';
+  const isPf=tab==='portfolio';
+  const isBal=tab==='balance';
   document.getElementById('filterbar').style.display=isDash?'flex':'none';
   document.getElementById('main').style.display=isDash?'flex':'none';
   const pv=document.getElementById('portfolioView');
+  const bv=document.getElementById('balanceView');
+  const tabbarBottom=document.getElementById('tabbar').getBoundingClientRect().bottom;
+  pv.style.display='none';
+  bv.style.display='none';
   if(isDash){
-    pv.classList.remove('active');
-  }else{
-    // position below topbar + tabbar
-    const tabbarBottom=document.getElementById('tabbar').getBoundingClientRect().bottom;
+    // nothing extra
+  }else if(isPf){
     pv.style.top=tabbarBottom+'px';
-    pv.classList.add('active');
+    pv.style.display='block';
     renderPortfolio();
+  }else if(isBal){
+    bv.style.top=tabbarBottom+'px';
+    bv.style.display='block';
+    renderBalance();
   }
 }
 
-// ── PORTFOLIO STATE ──
+// ── BALANCE DATA ──
+const BALANCE_DATA=[
+  {d:'31/7/2022',iol_ars:105705,mpago:26501,pfijo:104647,efec_ars:6470,bancos:150,tcmep:274,iol_usd:1,cripto:512,realestate:258,efec_usd:3625,deudas_ars:0,deudas_usd:0,total_ars:1449979,total_usd:5285,saldo_ars:1449979,saldo_usd:5285,var_pct:null,var_usd:null},
+  {d:'1/9/2022',iol_ars:104778,mpago:4873,pfijo:96147,efec_ars:1200,bancos:150,tcmep:280,iol_usd:2,cripto:558,realestate:259,efec_usd:3625,deudas_ars:0,deudas_usd:0,total_ars:1451303,total_usd:5186,saldo_ars:1451303,saldo_usd:5186,var_pct:-1.87,var_usd:-99},
+  {d:'30/9/2022',iol_ars:104331,mpago:24835,pfijo:94633,efec_ars:2500,bancos:116090,tcmep:296,iol_usd:12,cripto:619,realestate:355,efec_usd:3625,deudas_ars:29777,deudas_usd:100,total_ars:1709414,total_usd:5766,saldo_ars:1679637,saldo_usd:5666,var_pct:9.25,var_usd:480},
+  {d:'31/10/2022',iol_ars:197291,mpago:3783,pfijo:50000,efec_ars:1300,bancos:75473,tcmep:294,iol_usd:12,cripto:744,realestate:529,efec_usd:3825,deudas_ars:51700,deudas_usd:176,total_ars:1832798,total_usd:6225,saldo_ars:1781098,saldo_usd:6049,var_pct:6.76,var_usd:383},
+  {d:'30/11/2022',iol_ars:210854,mpago:5,pfijo:0,efec_ars:390,bancos:184785,tcmep:315,iol_usd:17,cripto:701,realestate:529,efec_usd:4025,deudas_ars:92500,deudas_usd:294,total_ars:2055522,total_usd:6531,saldo_ars:1963022,saldo_usd:6238,var_pct:3.12,var_usd:188},
+  {d:'27/12/2022',iol_ars:429180,mpago:10990,pfijo:0,efec_ars:3550,bancos:121071,tcmep:338,iol_usd:18,cripto:881,realestate:635,efec_usd:4195,deudas_ars:110470,deudas_usd:327,total_ars:2502827,total_usd:7401,saldo_ars:2392357,saldo_usd:7074,var_pct:13.41,var_usd:837},
+  {d:'31/1/2023',iol_ars:536692,mpago:7624,pfijo:0,efec_ars:170,bancos:170158,tcmep:357,iol_usd:36,cripto:974,realestate:835,efec_usd:4425,deudas_ars:176789,deudas_usd:496,total_ars:2950649,total_usd:8275,saldo_ars:2773860,saldo_usd:7779,var_pct:9.96,var_usd:705},
+  {d:'2/3/2023',iol_ars:737051,mpago:6500,pfijo:0,efec_ars:1640,bancos:60166,tcmep:363,iol_usd:5,cripto:986,realestate:836,efec_usd:4626,deudas_ars:200345,deudas_usd:552,total_ars:3147765,total_usd:8673,saldo_ars:2947420,saldo_usd:8121,var_pct:4.40,var_usd:342},
+  {d:'30/3/2023',iol_ars:1741837,mpago:367004,pfijo:425644,efec_ars:2560,bancos:246,tcmep:382,iol_usd:5,cripto:1065,realestate:836,efec_usd:4846,deudas_ars:2577774,deudas_usd:6740,total_ars:5120177,total_usd:13387,saldo_ars:2542403,saldo_usd:6647,var_pct:-18.15,var_usd:-1474},
+  {d:'29/4/2023',iol_ars:2165796,mpago:129588,pfijo:256256,efec_ars:1810,bancos:320294,tcmep:436,iol_usd:6,cripto:1081,realestate:836,efec_usd:5029,deudas_ars:2501416,deudas_usd:5737,total_ars:5904899,total_usd:13544,saldo_ars:3403483,saldo_usd:7806,var_pct:17.43,var_usd:1159},
+  {d:'31/5/2023',iol_ars:2533069,mpago:60010,pfijo:277860,efec_ars:4580,bancos:352119,tcmep:468,iol_usd:97,cripto:1060,realestate:837,efec_usd:5262,deudas_ars:2488446,deudas_usd:5320,total_ars:6621901,total_usd:14157,saldo_ars:4133455,saldo_usd:8837,var_pct:13.20,var_usd:1031},
+  {d:'30/6/2023',iol_ars:2536854,mpago:269082,pfijo:300787,efec_ars:4110,bancos:427132,tcmep:480,iol_usd:133,cripto:1099,realestate:837,efec_usd:5459,deudas_ars:2488446,deudas_usd:5189,total_ars:7148045,total_usd:14907,saldo_ars:4659599,saldo_usd:9717,var_pct:9.96,var_usd:880},
+  {d:'31/7/2023',iol_ars:3854165,mpago:140000,pfijo:0,efec_ars:1060,bancos:500517,tcmep:514,iol_usd:8,cripto:1088,realestate:837,efec_usd:4806,deudas_ars:2488446,deudas_usd:4837,total_ars:7963286,total_usd:15478,saldo_ars:5474840,saldo_usd:10641,var_pct:9.51,var_usd:924},
+  {d:'1/9/2023',iol_ars:5944652,mpago:2100,pfijo:422339,efec_ars:3050,bancos:2,tcmep:670,iol_usd:51,cripto:1030,realestate:837,efec_usd:4817,deudas_ars:2279476,deudas_usd:3402,total_ars:10885819,total_usd:16247,saldo_ars:8606343,saldo_usd:12845,var_pct:20.71,var_usd:2204},
+  {d:'3/10/2023',iol_ars:5261858,mpago:5200,pfijo:0,efec_ars:2700,bancos:2,tcmep:715,iol_usd:2749,cripto:1051,realestate:838,efec_usd:4666,deudas_ars:2142857,deudas_usd:2997,total_ars:11922728,total_usd:16675,saldo_ars:9779871,saldo_usd:13678,var_pct:6.48,var_usd:833},
+  {d:'31/10/2023',iol_ars:5931819,mpago:19978,pfijo:0,efec_ars:1200,bancos:2,tcmep:844,iol_usd:2947,cripto:1161,realestate:851,efec_usd:4553,deudas_ars:2030072,deudas_usd:2405,total_ars:13982174,total_usd:16567,saldo_ars:11952102,saldo_usd:14161,var_pct:3.53,var_usd:483},
+  {d:'27/11/2023',iol_ars:8140272,mpago:3147,pfijo:0,efec_ars:2600,bancos:5,tcmep:860,iol_usd:2224,cripto:1218,realestate:659,efec_usd:3975,deudas_ars:1943120,deudas_usd:2259,total_ars:15092614,total_usd:17550,saldo_ars:13149494,saldo_usd:15290,var_pct:7.97,var_usd:1129},
+  {d:'30/12/2023',iol_ars:10571838,mpago:208218,pfijo:633468,efec_ars:6600,bancos:0,tcmep:985,iol_usd:1017,cripto:1311,realestate:659,efec_usd:3975,deudas_ars:2058965,deudas_usd:2090,total_ars:18278748,total_usd:18557,saldo_ars:16219783,saldo_usd:16467,var_pct:7.70,var_usd:1177},
+  {d:'31/1/2024',iol_ars:13294900,mpago:9900,pfijo:755336,efec_ars:6300,bancos:0,tcmep:1170,iol_usd:1145,cripto:1325,realestate:659,efec_usd:4136,deudas_ars:2070246,deudas_usd:1769,total_ars:22568077,total_usd:19289,saldo_ars:20497831,saldo_usd:17520,var_pct:6.39,var_usd:1053},
+  {d:'3/3/2024',iol_ars:11461698,mpago:424510,pfijo:935684,efec_ars:9500,bancos:0,tcmep:1057,iol_usd:1299,cripto:1680,realestate:660,efec_usd:4360,deudas_ars:1920098,deudas_usd:1817,total_ars:21287593,total_usd:20140,saldo_ars:19367495,saldo_usd:18323,var_pct:4.59,var_usd:804},
+  {d:'29/3/2024',iol_ars:13186201,mpago:22992,pfijo:571590,efec_ars:1500,bancos:0,tcmep:1015,iol_usd:866,cripto:1815,realestate:661,efec_usd:4596,deudas_ars:2025866,deudas_usd:1996,total_ars:21840104,total_usd:21517,saldo_ars:19814238,saldo_usd:19521,var_pct:6.54,var_usd:1198},
+  {d:'30/4/2024',iol_ars:14759383,mpago:17757,pfijo:0,efec_ars:2950,bancos:0,tcmep:1040,iol_usd:1205,cripto:1706,realestate:661,efec_usd:4258,deudas_ars:2055553,deudas_usd:1976,total_ars:22924392,total_usd:22043,saldo_ars:20868839,saldo_usd:20066,var_pct:2.79,var_usd:545},
+  {d:'31/5/2024',iol_ars:17222980,mpago:22357,pfijo:0,efec_ars:5300,bancos:0,tcmep:1210,iol_usd:1238,cripto:1830,realestate:559,efec_usd:4614,deudas_ars:1944010,deudas_usd:1607,total_ars:27224014,total_usd:22499,saldo_ars:25280004,saldo_usd:20893,var_pct:4.12,var_usd:826},
+  {d:'30/6/2024',iol_ars:19316188,mpago:14576,pfijo:0,efec_ars:4500,bancos:81506,tcmep:1346,iol_usd:2403,cripto:1776,realestate:559,efec_usd:3525,deudas_ars:1702437,deudas_usd:1265,total_ars:30540733,total_usd:22690,saldo_ars:28838296,saldo_usd:21425,var_pct:2.55,var_usd:533},
+  {d:'30/7/2024',iol_ars:19449305,mpago:304928,pfijo:0,efec_ars:3000,bancos:1000,tcmep:1290,iol_usd:2147,cripto:1740,realestate:559,efec_usd:3723,deudas_ars:1660932,deudas_usd:1288,total_ars:30298126,total_usd:23487,saldo_ars:28637194,saldo_usd:22199,var_pct:3.61,var_usd:774},
+  {d:'30/8/2024',iol_ars:21045554,mpago:463800,pfijo:0,efec_ars:4820,bancos:300000,tcmep:1280,iol_usd:2419,cripto:1649,realestate:559,efec_usd:4175,deudas_ars:3073399,deudas_usd:2401,total_ars:33082603,total_usd:25846,saldo_ars:30009204,saldo_usd:23445,var_pct:5.61,var_usd:1245},
+  {d:'3/10/2024',iol_ars:17854714,mpago:393379,pfijo:0,efec_ars:39200,bancos:0,tcmep:1192,iol_usd:2285,cripto:1669,realestate:559,efec_usd:5251,deudas_ars:4952062,deudas_usd:4154,total_ars:29927721,total_usd:25107,saldo_ars:24975659,saldo_usd:20953,var_pct:-10.63,var_usd:-2492},
+  {d:'30/10/2024',iol_ars:16586012,mpago:804406,pfijo:0,efec_ars:9000,bancos:0,tcmep:1128,iol_usd:1389,cripto:1763,realestate:559,efec_usd:5949,deudas_ars:4742213,deudas_usd:4204,total_ars:28297545,total_usd:25086,saldo_ars:23555332,saldo_usd:20882,var_pct:-0.34,var_usd:-70},
+  {d:'31/11/2024',iol_ars:13800519,mpago:80190,pfijo:0,efec_ars:11200,bancos:0,tcmep:1075,iol_usd:3605,cripto:2068,realestate:559,efec_usd:7119,deudas_ars:5167447,deudas_usd:4807,total_ars:28245804,total_usd:26275,saldo_ars:23078357,saldo_usd:21468,var_pct:2.81,var_usd:586},
+  {d:'29/12/2025',iol_ars:16544834,mpago:295068,pfijo:0,efec_ars:60800,bancos:0,tcmep:1165,iol_usd:1630,cripto:2097,realestate:560,efec_usd:7290,deudas_ars:4963059,deudas_usd:4260,total_ars:30389608,total_usd:26086,saldo_ars:25426549,saldo_usd:21825,var_pct:1.66,var_usd:357},
+  {d:'3/2/2025',iol_ars:17362063,mpago:445637,pfijo:0,efec_ars:77400,bancos:320000,tcmep:1177,iol_usd:3146,cripto:2115,realestate:560,efec_usd:5809,deudas_ars:6259794,deudas_usd:5318,total_ars:31895328,total_usd:27099,saldo_ars:25635534,saldo_usd:21780,var_pct:-0.21,var_usd:-45},
+  {d:'28/2/2025',iol_ars:15747692,mpago:37997,pfijo:0,efec_ars:54200,bancos:1122970,tcmep:1215,iol_usd:3251,cripto:2082,realestate:561,efec_usd:6135,deudas_ars:4217809,deudas_usd:3471,total_ars:31579382,total_usd:25991,saldo_ars:27361573,saldo_usd:22520,var_pct:3.39,var_usd:739},
+  {d:'31/3/2025',iol_ars:20146349,mpago:38810,pfijo:0,efec_ars:133740,bancos:0,tcmep:1318,iol_usd:1732,cripto:2045,realestate:588,efec_usd:5662,deudas_ars:3959397,deudas_usd:3004,total_ars:33536409,total_usd:25445,saldo_ars:29577012,saldo_usd:22441,var_pct:-0.35,var_usd:-79},
+  {d:'29/4/2025',iol_ars:18324872,mpago:11500,pfijo:0,efec_ars:35000,bancos:0,tcmep:1170,iol_usd:1156,cripto:2070,realestate:559,efec_usd:6033,deudas_ars:3225779,deudas_usd:2757,total_ars:29860140,total_usd:25521,saldo_ars:26634361,saldo_usd:22764,var_pct:1.44,var_usd:324},
+  {d:'30/5/2025',iol_ars:17160837,mpago:85970,pfijo:0,efec_ars:15000,bancos:0,tcmep:1192,iol_usd:1138,cripto:2351,realestate:559,efec_usd:6070,deudas_ars:3035001,deudas_usd:2546,total_ars:29324203,total_usd:24601,saldo_ars:26289202,saldo_usd:22055,var_pct:-3.12,var_usd:-710},
+  {d:'27/6/2025',iol_ars:14426652,mpago:22000,pfijo:0,efec_ars:1770780,bancos:0,tcmep:1196,iol_usd:2310,cripto:2213,realestate:560,efec_usd:6559,deudas_ars:2662812,deudas_usd:2226,total_ars:30145010,total_usd:25205,saldo_ars:27482198,saldo_usd:22978,var_pct:4.19,var_usd:924},
+  {d:'30/7/2025',iol_ars:17929000,mpago:96574,pfijo:0,efec_ars:77600,bancos:0,tcmep:1322,iol_usd:3384,cripto:2604,realestate:560,efec_usd:5382,deudas_ars:2454946,deudas_usd:1857,total_ars:33876564,total_usd:25625,saldo_ars:31421618,saldo_usd:23768,var_pct:3.44,var_usd:790},
+  {d:'30/8/2025',iol_ars:19048990,mpago:28236,pfijo:0,efec_ars:35000,bancos:1345817,tcmep:1354,iol_usd:3595,cripto:2692,realestate:560,efec_usd:4485,deudas_ars:3289714,deudas_usd:2430,total_ars:35803548,total_usd:26443,saldo_ars:32513834,saldo_usd:24013,var_pct:1.03,var_usd:245},
+  {d:'30/9/2025',iol_ars:21823784,mpago:154300,pfijo:0,efec_ars:12000,bancos:1377450,tcmep:1500,iol_usd:5,cripto:2669,realestate:560,efec_usd:8213,deudas_ars:2135113,deudas_usd:1423,total_ars:40540224,total_usd:27027,saldo_ars:38405111,saldo_usd:25603,var_pct:6.62,var_usd:1590},
+  {d:'30/10/2025',iol_ars:21506963,mpago:0,pfijo:0,efec_ars:11700,bancos:1114234,tcmep:1470,iol_usd:694,cripto:2605,realestate:560,efec_usd:7170,deudas_ars:2389412,deudas_usd:1625,total_ars:38847673,total_usd:26427,saldo_ars:36458261,saldo_usd:24802,var_pct:-3.13,var_usd:-802},
+  {d:'29/11/2025',iol_ars:24759228,mpago:50060,pfijo:0,efec_ars:72700,bancos:0,tcmep:1475,iol_usd:594,cripto:2484,realestate:560,efec_usd:6948,deudas_ars:2311914,deudas_usd:1567,total_ars:40498492,total_usd:27457,saldo_ars:38186578,saldo_usd:25889,var_pct:4.39,var_usd:1088},
+  {d:'24/12/2025',iol_ars:25868843,mpago:189928,pfijo:0,efec_ars:75000,bancos:7000,tcmep:1480,iol_usd:197,cripto:2473,realestate:152,efec_usd:8298,deudas_ars:2652601,deudas_usd:1792,total_ars:42599733,total_usd:28784,saldo_ars:39947132,saldo_usd:26991,var_pct:4.26,var_usd:1102},
+  {d:'26/1/2026',iol_ars:25329965,mpago:46571,pfijo:0,efec_ars:30000,bancos:1431,tcmep:1440,iol_usd:1088,cripto:2390,realestate:152,efec_usd:6498,deudas_ars:2921398,deudas_usd:2029,total_ars:39993612,total_usd:27773,saldo_ars:37072214,saldo_usd:25745,var_pct:-4.62,var_usd:-1247},
+  {d:'28/2/2026',iol_ars:23980633,mpago:97087,pfijo:0,efec_ars:50000,bancos:2000,tcmep:1435,iol_usd:738,cripto:1108,realestate:152,efec_usd:6811,deudas_ars:2422622,deudas_usd:1688,total_ars:36771955,total_usd:25625,saldo_ars:34349333,saldo_usd:23937,var_pct:-7.02,var_usd:-1808},
+  {d:'30/3/2026',iol_ars:23752525,mpago:29700,pfijo:0,efec_ars:40000,bancos:0,tcmep:1415,iol_usd:1913,cripto:1084,realestate:152,efec_usd:5800,deudas_ars:1449488,deudas_usd:1024,total_ars:36486362,total_usd:25785,saldo_ars:35036874,saldo_usd:24761,var_pct:3.44,var_usd:824},
+];
+
+let balCharts={line:null,bar:null,stack:null};
+let balStackMode='usd';
+
+function setBalStack(mode){
+  balStackMode=mode;
+  const usdBtn=document.getElementById('balStackUSD');
+  const arsBtn=document.getElementById('balStackARS');
+  usdBtn.style.color=mode==='usd'?'var(--green)':'var(--text3)';
+  usdBtn.style.borderColor=mode==='usd'?'var(--green)':'var(--border2)';
+  arsBtn.style.color=mode==='ars'?'var(--green)':'var(--text3)';
+  arsBtn.style.borderColor=mode==='ars'?'var(--green)':'var(--border2)';
+  renderBalStack();
+}
+
+function renderBalance(){
+  const D=BALANCE_DATA;
+  const labels=D.map(r=>r.d);
+  const last=D[D.length-1];
+  const first=D[0];
+
+  // Summary cards
+  const totalGain=last.saldo_usd-first.saldo_usd;
+  const totalGainPct=((last.saldo_usd/first.saldo_usd)-1)*100;
+  const bestMonth=D.filter(r=>r.var_usd!==null).reduce((a,r)=>r.var_usd>a.var_usd?r:a,D[1]);
+  const worstMonth=D.filter(r=>r.var_usd!==null).reduce((a,r)=>r.var_usd<a.var_usd?r:a,D[1]);
+  document.getElementById('balSummary').innerHTML=`
+    <div class="pf-card"><div class="pf-card-label">PATRIMONIO ACTUAL</div><div class="pf-card-val">$${last.saldo_usd.toLocaleString()}</div></div>
+    <div class="pf-card"><div class="pf-card-label">CRECIMIENTO TOTAL</div><div class="pf-card-val up">+$${totalGain.toLocaleString()} (+${totalGainPct.toFixed(1)}%)</div></div>
+    <div class="pf-card"><div class="pf-card-label">MEJOR MES</div><div class="pf-card-val up">+$${bestMonth.var_usd?.toLocaleString()} <span style="font-size:11px;">(${bestMonth.d})</span></div></div>
+    <div class="pf-card"><div class="pf-card-label">PEOR MES</div><div class="pf-card-val down">$${worstMonth.var_usd?.toLocaleString()} <span style="font-size:11px;">(${worstMonth.d})</span></div></div>`;
+
+  // Line chart
+  if(balCharts.line)balCharts.line.destroy();
+  const lCtx=document.getElementById('balLineChart')?.getContext('2d');
+  if(lCtx){
+    const vals=D.map(r=>r.saldo_usd);
+    const grad=lCtx.createLinearGradient(0,0,0,200);
+    grad.addColorStop(0,'rgba(0,255,136,0.2)');grad.addColorStop(1,'rgba(0,255,136,0)');
+    balCharts.line=new Chart(lCtx,{
+      type:'line',
+      data:{labels,datasets:[{data:vals,borderColor:'#00ff88',borderWidth:2,pointRadius:0,fill:true,backgroundColor:grad,tension:0.3}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>'$'+v.raw.toLocaleString()}}},
+        scales:{
+          x:{ticks:{font:{size:9},color:'#686868',maxTicksLimit:10},grid:{color:'rgba(255,255,255,0.04)'}},
+          y:{ticks:{font:{size:9},color:'#686868',callback:v=>'$'+v.toLocaleString()},grid:{color:'rgba(255,255,255,0.04)'},position:'right'}
+        }}
+    });
+  }
+
+  // Bar chart (monthly var)
+  if(balCharts.bar)balCharts.bar.destroy();
+  const bCtx=document.getElementById('balBarChart')?.getContext('2d');
+  const barData=D.filter(r=>r.var_usd!==null);
+  if(bCtx){
+    balCharts.bar=new Chart(bCtx,{
+      type:'bar',
+      data:{
+        labels:barData.map(r=>r.d),
+        datasets:[{
+          data:barData.map(r=>r.var_usd),
+          backgroundColor:barData.map(r=>r.var_usd>=0?'rgba(0,255,136,0.7)':'rgba(255,51,85,0.7)'),
+          borderWidth:0,borderRadius:2
+        }]
+      },
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>(v.raw>=0?'+$':'-$')+Math.abs(v.raw).toLocaleString()}}},
+        scales:{
+          x:{ticks:{font:{size:9},color:'#686868',maxTicksLimit:12},grid:{display:false}},
+          y:{ticks:{font:{size:9},color:'#686868',callback:v=>'$'+v.toLocaleString()},grid:{color:'rgba(255,255,255,0.04)'},position:'right'}
+        }}
+    });
+  }
+
+  // Stack chart
+  renderBalStack();
+
+  // Table
+  const thCls='padding:6px 10px;text-align:right;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);letter-spacing:.07em;white-space:nowrap;';
+  const thL='padding:6px 10px;text-align:left;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);letter-spacing:.07em;';
+  document.getElementById('balThead').innerHTML=`<tr>
+    <th style="${thL}">FECHA</th>
+    <th style="${thCls}">IOL+Cocos ARS</th>
+    <th style="${thCls}">MPago/Uala</th>
+    <th style="${thCls}">P.Fijo</th>
+    <th style="${thCls}">Efectivo $</th>
+    <th style="${thCls}">Bancos/FCI</th>
+    <th style="${thCls}" class="td-sep">Subtotal ARS→USD</th>
+    <th style="${thCls}">IOL USD</th>
+    <th style="${thCls}">Cripto</th>
+    <th style="${thCls}">Real State</th>
+    <th style="${thCls}">Efectivo USD</th>
+    <th style="${thCls}" class="td-sep">Subtotal USD</th>
+    <th style="${thCls}">Total Activos</th>
+    <th style="${thCls}">Deudas USD</th>
+    <th style="${thCls}">Patrimonio USD</th>
+    <th style="${thCls}">Var %</th>
+    <th style="${thCls}">Var USD</th>
+  </tr>`;
+
+  const fU=v=>'$'+v.toLocaleString();
+  const fARS=v=>'$'+(v/1000).toFixed(0)+'k';
+  const rows=[...D].reverse();
+  document.getElementById('balTbody').innerHTML=rows.map(r=>{
+    const subtotalARS_usd=+(r.iol_ars+r.mpago+r.pfijo+r.efec_ars+r.bancos).toFixed(0);
+    const subtotalARS_usdVal=Math.round(subtotalARS_usd/r.tcmep);
+    const subtotalUSD=r.iol_usd+r.cripto+r.realestate+r.efec_usd;
+    const varCls=r.var_usd===null?'':r.var_usd>=0?'up':'down';
+    const pctCls=r.var_pct===null?'':r.var_pct>=0?'up':'down';
+    const tdS='padding:7px 10px;text-align:right;font-size:11px;color:var(--text2);border-bottom:1px solid rgba(255,255,255,0.05);';
+    const tdL='padding:7px 10px;text-align:left;font-size:11px;color:var(--text2);border-bottom:1px solid rgba(255,255,255,0.05);';
+    return`<tr>
+      <td style="${tdL};color:#fff;font-weight:500;">${r.d}</td>
+      <td style="${tdS}">${fARS(r.iol_ars)}</td>
+      <td style="${tdS}">${fARS(r.mpago)}</td>
+      <td style="${tdS}">${r.pfijo?fARS(r.pfijo):'—'}</td>
+      <td style="${tdS}">${fARS(r.efec_ars)}</td>
+      <td style="${tdS}">${r.bancos?fARS(r.bancos):'—'}</td>
+      <td style="${tdS};color:var(--text3);">$${subtotalARS_usdVal.toLocaleString()}</td>
+      <td style="${tdS}">${r.iol_usd?fU(r.iol_usd):'—'}</td>
+      <td style="${tdS}">${fU(r.cripto)}</td>
+      <td style="${tdS}">${fU(r.realestate)}</td>
+      <td style="${tdS}">${fU(r.efec_usd)}</td>
+      <td style="${tdS};color:var(--text3);">${fU(subtotalUSD)}</td>
+      <td style="${tdS};font-weight:700;">${fU(r.total_usd)}</td>
+      <td style="${tdS};color:var(--red);">-${fU(r.deudas_usd)}</td>
+      <td style="${tdS};font-weight:700;color:#fff;">${fU(r.saldo_usd)}</td>
+      <td style="${tdS}" class="${pctCls}">${r.var_pct!==null?(r.var_pct>=0?'+':'')+r.var_pct.toFixed(2)+'%':'—'}</td>
+      <td style="${tdS}" class="${varCls}">${r.var_usd!==null?(r.var_usd>=0?'+$':'-$')+Math.abs(r.var_usd).toLocaleString():'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderBalStack(){
+  if(balCharts.stack)balCharts.stack.destroy();
+  const ctx=document.getElementById('balStackChart')?.getContext('2d');
+  if(!ctx)return;
+  const D=BALANCE_DATA;
+  const labels=D.map(r=>r.d);
+  const isUSD=balStackMode==='usd';
+
+  let datasets;
+  if(isUSD){
+    datasets=[
+      {label:'IOL+Cocos ARS→USD',data:D.map(r=>Math.round(r.iol_ars/r.tcmep)),backgroundColor:'rgba(0,255,136,0.8)'},
+      {label:'IOL USD',data:D.map(r=>r.iol_usd),backgroundColor:'rgba(0,200,100,0.8)'},
+      {label:'Cripto',data:D.map(r=>r.cripto),backgroundColor:'rgba(255,187,0,0.8)'},
+      {label:'Real State',data:D.map(r=>r.realestate),backgroundColor:'rgba(51,187,255,0.8)'},
+      {label:'Efectivo USD',data:D.map(r=>r.efec_usd),backgroundColor:'rgba(170,136,255,0.8)'},
+      {label:'Otros ARS→USD',data:D.map(r=>Math.round((r.mpago+r.pfijo+r.efec_ars+r.bancos)/r.tcmep)),backgroundColor:'rgba(100,100,100,0.6)'},
+    ];
+  }else{
+    datasets=[
+      {label:'IOL+Cocos',data:D.map(r=>r.iol_ars/1e6),backgroundColor:'rgba(0,255,136,0.8)'},
+      {label:'MPago/Uala',data:D.map(r=>r.mpago/1e6),backgroundColor:'rgba(255,187,0,0.8)'},
+      {label:'P.Fijo',data:D.map(r=>r.pfijo/1e6),backgroundColor:'rgba(51,187,255,0.8)'},
+      {label:'Efectivo',data:D.map(r=>r.efec_ars/1e6),backgroundColor:'rgba(170,136,255,0.8)'},
+      {label:'Bancos/FCI',data:D.map(r=>r.bancos/1e6),backgroundColor:'rgba(255,85,51,0.7)'},
+    ];
+  }
+
+  balCharts.stack=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:true,position:'bottom',labels:{font:{size:10},color:'#b0b0b0',boxWidth:10,padding:6}}},
+      scales:{
+        x:{stacked:true,ticks:{font:{size:9},color:'#686868',maxTicksLimit:12},grid:{display:false}},
+        y:{stacked:true,ticks:{font:{size:9},color:'#686868',callback:v=>isUSD?'$'+v.toLocaleString():v.toFixed(1)+'M'},grid:{color:'rgba(255,255,255,0.04)'},position:'right'}
+      }
+    }
+  });
+}
 let pfCharts={pie:null,line:null};
 
 function savePf(){localStorage.setItem('pf_positions',JSON.stringify(pfPositions));}
@@ -2969,7 +3344,7 @@ async function renderPortfolio(){
     });
   }
 
-  tbody.innerHTML=groupedRows.map(g=>`<tr>
+  tbody.innerHTML=groupedRows.map(g=>`<tr onclick="openTickerHistory('${g.ticker}')" style="cursor:pointer;">
     <td><span class="ts">${g.ticker}</span></td>
     <td>${g.cedears??'—'}</td>
     <td style="color:var(--text3);">${g.ratio??'—'}:1</td>
@@ -2980,7 +3355,7 @@ async function renderPortfolio(){
     <td style="color:var(--text2);">${g.pctPortfolio!=null?g.pctPortfolio.toFixed(1)+'%':'—'}</td>
     <td style="font-weight:500;color:${g.plDol===null?'var(--text2)':g.plDol>=0?'var(--green)':'var(--red)'};">${g.plDol!==null?fD(g.plDol):'—'}</td>
     <td style="font-weight:500;color:${g.plPct===null?'var(--text2)':g.plPct>=0?'var(--green)':'var(--red)'};">${g.plPct!==null?(g.plPct>=0?'+':'')+g.plPct.toFixed(2)+'%':'—'}</td>
-    <td><button class="btn" onclick="deletePfTicker('${g.ticker}')" style="padding:3px 8px;font-size:10px;color:var(--red);border-color:var(--red);">✕</button></td>
+    <td onclick="event.stopPropagation()"><button class="btn" onclick="deletePfTicker('${g.ticker}')" style="padding:3px 8px;font-size:10px;color:var(--red);border-color:var(--red);">✕</button></td>
   </tr>`).join('');
 
   // Charts
