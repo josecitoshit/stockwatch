@@ -2217,19 +2217,22 @@ function openTickerHistory(ticker){
     dividendo:{label:'DIVIDENDO',color:'var(--blue)',  bg:'rgba(51,187,255,0.12)'},
   };
 
+  // Store events in a registry so onclick can reference by index safely
+  window._thpEvents=events;
+
   document.getElementById('thpBody').innerHTML=events.length
-    ? events.map(e=>{
+    ? events.map((e,i)=>{
         const cfg=typeCfg[e.type]||typeCfg.compra;
-        // Build edit onclick — serialize event data
-        const editCall=`openEditMove(${JSON.stringify(e).replace(/'/g,"\\'")})`;
         return`<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
-          <td style="padding:8px 10px;color:var(--text3);">${e.date}</td>
+          <td style="padding:8px 10px;color:var(--text3);white-space:nowrap;">${e.date}</td>
           <td style="padding:8px 10px;"><span style="padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;letter-spacing:.05em;background:${cfg.bg};color:${cfg.color};">${cfg.label}</span></td>
           <td style="padding:8px 10px;text-align:right;color:var(--text2);">${e.cedears!=null?e.cedears:'—'}</td>
           <td style="padding:8px 10px;text-align:right;color:var(--text2);">${e.priceUSD!=null?'$'+e.priceUSD.toFixed(4):'—'}</td>
-          <td style="padding:8px 10px;text-align:right;font-weight:700;color:${e.type==='compra'?'var(--text2)':e.totalUSD>=0?'var(--green)':'var(--red)'};">${e.type==='compra'?'-':'+'}&nbsp;$${Math.abs(e.totalUSD).toFixed(2)}</td>
+          <td style="padding:8px 10px;text-align:right;font-weight:700;color:${e.type==='compra'?'var(--text2)':e.totalUSD>=0?'var(--green)':'var(--red)'};">${e.type==='compra'?'- ':'+ '}$${Math.abs(e.totalUSD).toFixed(2)}</td>
           <td style="padding:8px 10px;color:var(--text3);font-size:11px;">${e.notes||'—'}</td>
-          <td style="padding:8px 10px;text-align:right;"><button onclick="${editCall}" style="background:transparent;border:1px solid var(--border2);color:var(--text3);border-radius:3px;padding:2px 8px;font-size:10px;cursor:pointer;font-family:var(--mono);">✏</button></td>
+          <td style="padding:8px 10px;text-align:right;">
+            <button onclick="openEditMove(window._thpEvents[${i}])" style="background:transparent;border:1px solid var(--border2);color:var(--text3);border-radius:3px;padding:3px 9px;font-size:13px;cursor:pointer;line-height:1;" title="Editar">✏</button>
+          </td>
         </tr>`;
       }).join('')
     : '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text3);">Sin movimientos registrados</td></tr>';
