@@ -710,9 +710,37 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
           <th style="padding:6px 10px;text-align:right;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);">PRECIO USD/CEDEAR</th>
           <th style="padding:6px 10px;text-align:right;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);">TOTAL USD</th>
           <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text3);border-bottom:2px solid var(--border2);">NOTAS</th>
+          <th style="padding:6px 10px;border-bottom:2px solid var(--border2);width:60px;"></th>
         </tr></thead>
         <tbody id="thpBody"></tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT MOVEMENT MODAL -->
+<div id="editMoveModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:200;align-items:center;justify-content:center;">
+  <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:3px;width:400px;max-width:95vw;">
+    <h2 id="editMoveTitle" style="font-size:13px;font-weight:700;padding:14px 20px;border-bottom:1px solid var(--border2);color:var(--green);letter-spacing:.08em;"></h2>
+    <div class="pf-form">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="pf-field"><label>FECHA</label><input id="emDate" type="date"/></div>
+        <div class="pf-field" id="emCedearsField"><label>CEDEARs</label><input id="emCedears" type="number" min="0" step="1" oninput="updateEmTotal()"/></div>
+        <div class="pf-field" id="emPriceField"><label>PRECIO USD/CEDEAR</label><input id="emPrice" type="number" min="0" step="any" oninput="updateEmTotal()"/></div>
+        <div class="pf-field" id="emAmtField" style="display:none;"><label>MONTO USD</label><input id="emAmt" type="number" min="0" step="any" oninput="updateEmTotal()"/></div>
+        <div class="pf-field" style="grid-column:1/-1;"><label>NOTAS</label><input id="emNotes" placeholder="opcional"/></div>
+      </div>
+      <div style="background:var(--bg3);border-radius:3px;padding:10px 14px;border:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:11px;color:var(--text3);">TOTAL USD</span>
+        <span id="emTotalDisplay" style="font-size:15px;font-weight:700;color:var(--green);">—</span>
+      </div>
+    </div>
+    <div class="mfoot" style="justify-content:space-between;">
+      <button onclick="deleteEditMove()" style="background:transparent;border:1px solid var(--red);color:var(--red);border-radius:3px;padding:5px 14px;cursor:pointer;font-family:var(--mono);font-size:11px;font-weight:700;">ELIMINAR</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" onclick="closeEditMove()">CANCELAR</button>
+        <button class="btn primary" onclick="saveEditMove()">GUARDAR</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2157,38 +2185,17 @@ function openTickerHistory(ticker){
 
   // Compras (from pfPositions)
   for(const p of pfPositions.filter(p=>p.ticker===ticker)){
-    const priceUSD=p.cost; // cost per CEDEAR in USD
+    const priceUSD=p.cost;
     const totalUSD=priceUSD*(p.cedears||p.shares*(p.ratio||1));
-    events.push({
-      date:p.date,
-      type:'compra',
-      cedears:p.cedears??null,
-      priceUSD,
-      totalUSD,
-      notes:''
-    });
+    events.push({id:p.id,ticker,date:p.date,type:'compra',cedears:p.cedears??null,priceUSD,totalUSD,notes:''});
   }
 
   // Ventas y dividendos (from realizedEvents)
   for(const e of realizedEvents.filter(e=>e.ticker===ticker)){
     if(e.type==='venta'){
-      events.push({
-        date:e.date,
-        type:'venta',
-        cedears:e.cedears??null,
-        priceUSD:e.pricePerCedearUSD??null,
-        totalUSD:e.amtUSD,
-        notes:e.notes||''
-      });
+      events.push({id:e.id,ticker,date:e.date,type:'venta',cedears:e.cedears??null,priceUSD:e.pricePerCedearUSD??null,totalUSD:e.amtUSD,notes:e.notes||''});
     }else if(e.type==='dividendo'){
-      events.push({
-        date:e.date,
-        type:'dividendo',
-        cedears:null,
-        priceUSD:null,
-        totalUSD:e.amtUSD,
-        notes:e.notes||''
-      });
+      events.push({id:e.id,ticker,date:e.date,type:'dividendo',cedears:null,priceUSD:null,totalUSD:e.amtUSD,notes:e.notes||''});
     }
   }
 
@@ -2205,14 +2212,16 @@ function openTickerHistory(ticker){
     (totalDividendos?` &nbsp;·&nbsp; <span style="color:var(--text2);">Dividendos: <b style="color:var(--blue);">$${totalDividendos.toFixed(2)}</b></span>`:'');
 
   const typeCfg={
-    compra: {label:'COMPRA',   color:'var(--green)', bg:'rgba(0,255,136,0.1)'},
-    venta:  {label:'VENTA',    color:'var(--amber)', bg:'rgba(255,187,0,0.1)'},
-    dividendo:{label:'DIVIDENDO',color:'var(--blue)', bg:'rgba(51,187,255,0.12)'},
+    compra:   {label:'COMPRA',   color:'var(--green)', bg:'rgba(0,255,136,0.1)'},
+    venta:    {label:'VENTA',    color:'var(--amber)', bg:'rgba(255,187,0,0.1)'},
+    dividendo:{label:'DIVIDENDO',color:'var(--blue)',  bg:'rgba(51,187,255,0.12)'},
   };
 
   document.getElementById('thpBody').innerHTML=events.length
     ? events.map(e=>{
         const cfg=typeCfg[e.type]||typeCfg.compra;
+        // Build edit onclick — serialize event data
+        const editCall=`openEditMove(${JSON.stringify(e).replace(/'/g,"\\'")})`;
         return`<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
           <td style="padding:8px 10px;color:var(--text3);">${e.date}</td>
           <td style="padding:8px 10px;"><span style="padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;letter-spacing:.05em;background:${cfg.bg};color:${cfg.color};">${cfg.label}</span></td>
@@ -2220,13 +2229,131 @@ function openTickerHistory(ticker){
           <td style="padding:8px 10px;text-align:right;color:var(--text2);">${e.priceUSD!=null?'$'+e.priceUSD.toFixed(4):'—'}</td>
           <td style="padding:8px 10px;text-align:right;font-weight:700;color:${e.type==='compra'?'var(--text2)':e.totalUSD>=0?'var(--green)':'var(--red)'};">${e.type==='compra'?'-':'+'}&nbsp;$${Math.abs(e.totalUSD).toFixed(2)}</td>
           <td style="padding:8px 10px;color:var(--text3);font-size:11px;">${e.notes||'—'}</td>
+          <td style="padding:8px 10px;text-align:right;"><button onclick="${editCall}" style="background:transparent;border:1px solid var(--border2);color:var(--text3);border-radius:3px;padding:2px 8px;font-size:10px;cursor:pointer;font-family:var(--mono);">✏</button></td>
         </tr>`;
       }).join('')
-    : '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text3);">Sin movimientos registrados</td></tr>';
+    : '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text3);">Sin movimientos registrados</td></tr>';
 
   document.getElementById('tickerHistoryPanel').style.display='flex';
 }
 function closeTickerHistory(){document.getElementById('tickerHistoryPanel').style.display='none';}
+
+// ── EDIT MOVEMENT MODAL ──
+let _editEvent=null; // current event being edited
+
+function openEditMove(ev){
+  _editEvent=ev;
+  const isCompra=ev.type==='compra';
+  const isDiv=ev.type==='dividendo';
+  const isVenta=ev.type==='venta';
+
+  const typeCfg={compra:'var(--green)',venta:'var(--amber)',dividendo:'var(--blue)'};
+  document.getElementById('editMoveTitle').textContent=
+    `// EDITAR ${ev.type.toUpperCase()} — ${ev.ticker||''}`;
+  document.getElementById('editMoveTitle').style.color=typeCfg[ev.type]||'var(--green)';
+
+  document.getElementById('emDate').value=ev.date||'';
+  document.getElementById('emNotes').value=ev.notes||'';
+
+  // Show/hide fields based on type
+  document.getElementById('emCedearsField').style.display=isDiv?'none':'block';
+  document.getElementById('emPriceField').style.display=isDiv?'none':'block';
+  document.getElementById('emAmtField').style.display=isDiv?'block':'none';
+
+  if(!isDiv){
+    document.getElementById('emCedears').value=ev.cedears??'';
+    document.getElementById('emPrice').value=ev.priceUSD!=null?ev.priceUSD:'';
+  }else{
+    document.getElementById('emAmt').value=ev.totalUSD!=null?ev.totalUSD:'';
+  }
+
+  updateEmTotal();
+  document.getElementById('editMoveModal').style.display='flex';
+}
+
+function closeEditMove(){document.getElementById('editMoveModal').style.display='none';}
+
+function updateEmTotal(){
+  const ev=_editEvent;
+  if(!ev)return;
+  const el=document.getElementById('emTotalDisplay');
+  if(ev.type==='dividendo'){
+    const amt=parseFloat(document.getElementById('emAmt').value);
+    el.textContent=isNaN(amt)?'—':'$'+amt.toFixed(2)+' USD';
+  }else{
+    const cedears=parseFloat(document.getElementById('emCedears').value);
+    const price=parseFloat(document.getElementById('emPrice').value);
+    if(!isNaN(cedears)&&!isNaN(price)){
+      el.textContent='$'+(cedears*price).toFixed(2)+' USD';
+    }else{el.textContent='—';}
+  }
+}
+
+function saveEditMove(){
+  const ev=_editEvent;
+  if(!ev)return;
+  const newDate=document.getElementById('emDate').value;
+  const newNotes=document.getElementById('emNotes').value.trim();
+  if(!newDate){alert('La fecha es obligatoria');return;}
+
+  if(ev.type==='compra'){
+    // Update in pfPositions by id
+    const p=pfPositions.find(p=>p.id===ev.id);
+    if(p){
+      const newCedears=parseFloat(document.getElementById('emCedears').value);
+      const newPrice=parseFloat(document.getElementById('emPrice').value);
+      if(isNaN(newCedears)||isNaN(newPrice)){alert('Completá todos los campos');return;}
+      p.date=newDate;
+      p.cedears=newCedears;
+      p.cost=newPrice;
+      p.shares=newCedears/(p.ratio||1);
+    }
+    savePf();
+  }else{
+    // Update in realizedEvents by id
+    const e=realizedEvents.find(e=>e.id===ev.id);
+    if(e){
+      e.date=newDate;
+      e.notes=newNotes;
+      if(ev.type==='dividendo'){
+        const amt=parseFloat(document.getElementById('emAmt').value);
+        if(isNaN(amt)){alert('Ingresá el monto');return;}
+        e.amtUSD=amt;
+      }else{
+        const newCedears=parseFloat(document.getElementById('emCedears').value);
+        const newPrice=parseFloat(document.getElementById('emPrice').value);
+        if(isNaN(newCedears)||isNaN(newPrice)){alert('Completá todos los campos');return;}
+        e.cedears=newCedears;
+        e.pricePerCedearUSD=newPrice;
+        e.amtUSD=ev.amtUSD; // keep original P&L (recalculating would need avg cost)
+      }
+    }
+    saveRealized();
+  }
+
+  closeEditMove();
+  // Refresh history panel for same ticker
+  openTickerHistory(ev.ticker);
+  renderPortfolio();
+}
+
+function deleteEditMove(){
+  const ev=_editEvent;
+  if(!ev)return;
+  if(!confirm(`¿Eliminar este ${ev.type}?`))return;
+
+  if(ev.type==='compra'){
+    pfPositions=pfPositions.filter(p=>p.id!==ev.id);
+    savePf();
+  }else{
+    realizedEvents=realizedEvents.filter(e=>e.id!==ev.id);
+    saveRealized();
+  }
+
+  closeEditMove();
+  openTickerHistory(ev.ticker);
+  renderPortfolio();
+}
 
 function openDivModal(){
   document.getElementById('divTicker').value='';
