@@ -435,6 +435,11 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 
 <div id="balanceView" style="display:none;position:fixed;left:0;right:0;bottom:0;overflow-y:auto;background:var(--bg);padding:24px 32px;">
 
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+    <button class="btn primary" onclick="openBalModal()">+ AGREGAR MES</button>
+    <span style="font-size:10px;color:var(--text3);margin-left:4px;">Los datos se guardan localmente en tu browser</span>
+  </div>
+
   <!-- Summary cards -->
   <div id="balSummary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px;"></div>
 
@@ -740,6 +745,59 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
       <div style="display:flex;gap:8px;">
         <button class="btn" onclick="closeEditMove()">CANCELAR</button>
         <button class="btn primary" onclick="saveEditMove()">GUARDAR</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BALANCE MODAL -->
+<div id="balModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:200;align-items:center;justify-content:center;overflow-y:auto;">
+  <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:3px;width:540px;max-width:95vw;margin:20px auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border2);">
+      <h2 id="balModalTitle" style="font-size:13px;font-weight:700;color:var(--green);letter-spacing:.08em;">// AGREGAR MES</h2>
+      <button onclick="closeBalModal()" style="background:transparent;border:1px solid var(--border2);color:var(--text3);border-radius:3px;padding:4px 12px;cursor:pointer;font-family:var(--mono);font-size:11px;">✕</button>
+    </div>
+    <div class="pf-form">
+
+      <div class="pf-field"><label>FECHA (cierre del mes)</label><input id="bmDate" type="date"/></div>
+
+      <div style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.1em;padding:4px 0 2px;border-bottom:1px solid var(--border2);">EN ARS</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="pf-field"><label>IOL + Cocos (ARS)</label><input id="bmIolArs" type="number" min="0" step="1" placeholder="0" oninput="updateBalPreview()"/></div>
+        <div class="pf-field"><label>MPago / Uala (ARS)</label><input id="bmMpago" type="number" min="0" step="1" placeholder="0" oninput="updateBalPreview()"/></div>
+        <div class="pf-field"><label>Plazo Fijo (ARS)</label><input id="bmPfijo" type="number" min="0" step="1" placeholder="0" oninput="updateBalPreview()"/></div>
+        <div class="pf-field"><label>Efectivo ARS</label><input id="bmEfecArs" type="number" min="0" step="1" placeholder="0" oninput="updateBalPreview()"/></div>
+        <div class="pf-field"><label>Bancos / FCI (ARS)</label><input id="bmBancos" type="number" min="0" step="1" placeholder="0" oninput="updateBalPreview()"/></div>
+        <div class="pf-field"><label>TC MEP (ARS/USD)</label><input id="bmTcmep" type="number" min="0" step="any" placeholder="ej: 1415" oninput="updateBalPreview()"/></div>
+      </div>
+
+      <div style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.1em;padding:4px 0 2px;border-bottom:1px solid var(--border2);">EN USD</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="pf-field"><label>IOL + Cocos (USD)</label><input id="bmIolUsd" type="number" min="0" step="any" placeholder="0" oninput="updateBalPreview()"/></div>
+        <div class="pf-field"><label>Cripto (USD)</label><input id="bmCripto" type="number" min="0" step="any" placeholder="0" oninput="updateBalPreview()"/></div>
+        <div class="pf-field"><label>Real Estate (USD)</label><input id="bmRealEstate" type="number" min="0" step="any" placeholder="0" oninput="updateBalPreview()"/></div>
+        <div class="pf-field"><label>Efectivo + CA (USD)</label><input id="bmEfecUsd" type="number" min="0" step="any" placeholder="0" oninput="updateBalPreview()"/></div>
+      </div>
+
+      <div style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.1em;padding:4px 0 2px;border-bottom:1px solid var(--border2);">DEUDAS</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="pf-field"><label>Deudas ARS</label><input id="bmDeudasArs" type="number" min="0" step="1" placeholder="0" oninput="updateBalPreview()"/></div>
+        <div class="pf-field"><label>Deudas USD</label><input id="bmDeudasUsd" type="number" min="0" step="any" placeholder="0" oninput="updateBalPreview()"/></div>
+      </div>
+
+      <!-- Live preview -->
+      <div style="background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:12px 16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+        <div><div style="font-size:9px;color:var(--text3);letter-spacing:.08em;margin-bottom:3px;">TOTAL ACTIVOS USD</div><div id="bmPreviewTotal" style="font-size:14px;font-weight:700;color:#fff;">—</div></div>
+        <div><div style="font-size:9px;color:var(--text3);letter-spacing:.08em;margin-bottom:3px;">DEUDAS USD</div><div id="bmPreviewDeudas" style="font-size:14px;font-weight:700;color:var(--red);">—</div></div>
+        <div><div style="font-size:9px;color:var(--text3);letter-spacing:.08em;margin-bottom:3px;">PATRIMONIO NETO</div><div id="bmPreviewSaldo" style="font-size:14px;font-weight:700;color:var(--green);">—</div></div>
+      </div>
+
+    </div>
+    <div class="mfoot" style="justify-content:space-between;">
+      <button id="bmDeleteBtn" onclick="deleteBalMonth()" style="display:none;background:transparent;border:1px solid var(--red);color:var(--red);border-radius:3px;padding:5px 14px;cursor:pointer;font-family:var(--mono);font-size:11px;font-weight:700;">ELIMINAR MES</button>
+      <div style="display:flex;gap:8px;margin-left:auto;">
+        <button class="btn" onclick="closeBalModal()">CANCELAR</button>
+        <button class="btn primary" onclick="saveBalMonth()">GUARDAR</button>
       </div>
     </div>
   </div>
@@ -2535,7 +2593,132 @@ function switchTab(tab){
   }
 }
 
-// ── BALANCE DATA ──
+// ── BALANCE MODAL ──
+let _balEditDate=null;
+
+function openBalModal(editDate=null){
+  _balEditDate=editDate;
+  const isEdit=!!editDate;
+  document.getElementById('balModalTitle').textContent=isEdit?'// EDITAR MES':'// AGREGAR MES';
+  document.getElementById('bmDeleteBtn').style.display=isEdit?'block':'none';
+
+  if(isEdit){
+    // Load existing data
+    const all=getAllBalData();
+    const row=all.find(r=>r.d===editDate);
+    if(row) fillBalModal(row);
+  }else{
+    // Prepopulate with last month's values
+    const all=getAllBalData();
+    const last=all[all.length-1];
+    if(last) fillBalModal(last);
+    // Set date to today
+    document.getElementById('bmDate').value=new Date().toISOString().slice(0,10);
+  }
+
+  updateBalPreview();
+  document.getElementById('balModal').style.display='flex';
+}
+
+function fillBalModal(r){
+  const fmt=v=>v||0;
+  document.getElementById('bmDate').value=normalizeBalDate(r.d);
+  document.getElementById('bmIolArs').value=fmt(r.iol_ars);
+  document.getElementById('bmMpago').value=fmt(r.mpago);
+  document.getElementById('bmPfijo').value=fmt(r.pfijo);
+  document.getElementById('bmEfecArs').value=fmt(r.efec_ars);
+  document.getElementById('bmBancos').value=fmt(r.bancos);
+  document.getElementById('bmTcmep').value=fmt(r.tcmep);
+  document.getElementById('bmIolUsd').value=fmt(r.iol_usd);
+  document.getElementById('bmCripto').value=fmt(r.cripto);
+  document.getElementById('bmRealEstate').value=fmt(r.realestate);
+  document.getElementById('bmEfecUsd').value=fmt(r.efec_usd);
+  document.getElementById('bmDeudasArs').value=fmt(r.deudas_ars);
+  document.getElementById('bmDeudasUsd').value=fmt(r.deudas_usd);
+}
+
+function normalizeBalDate(d){
+  // Convert DD/MM/YYYY to YYYY-MM-DD for input[type=date]
+  if(!d)return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(d))return d;
+  const p=d.split('/');
+  if(p.length===3&&p[2].length===4)return`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+  return d;
+}
+
+function formatBalDate(isoDate){
+  // Convert YYYY-MM-DD to DD/MM/YYYY
+  if(!isoDate)return '';
+  const p=isoDate.split('-');
+  if(p.length===3)return`${p[2]}/${p[1]}/${p[0]}`;
+  return isoDate;
+}
+
+function getNum(id){return parseFloat(document.getElementById(id).value)||0;}
+
+function updateBalPreview(){
+  const iol_ars=getNum('bmIolArs'),mpago=getNum('bmMpago'),pfijo=getNum('bmPfijo');
+  const efec_ars=getNum('bmEfecArs'),bancos=getNum('bmBancos'),tcmep=getNum('bmTcmep');
+  const iol_usd=getNum('bmIolUsd'),cripto=getNum('bmCripto'),re=getNum('bmRealEstate'),efec_usd=getNum('bmEfecUsd');
+  const deudasArs=getNum('bmDeudasArs'),deudasUsd=getNum('bmDeudasUsd');
+
+  const arsUSD=tcmep>0?Math.round((iol_ars+mpago+pfijo+efec_ars+bancos)/tcmep):0;
+  const totalUSD=arsUSD+iol_usd+cripto+re+efec_usd;
+  const totalDeudasUSD=deudasUsd+(tcmep>0?deudasArs/tcmep:0);
+  const saldo=totalUSD-totalDeudasUSD;
+
+  document.getElementById('bmPreviewTotal').textContent=totalUSD?'$'+Math.round(totalUSD).toLocaleString():'—';
+  document.getElementById('bmPreviewDeudas').textContent=totalDeudasUSD?'-$'+Math.round(totalDeudasUSD).toLocaleString():'—';
+  document.getElementById('bmPreviewSaldo').textContent=saldo?'$'+Math.round(saldo).toLocaleString():'—';
+  document.getElementById('bmPreviewSaldo').style.color=saldo>=0?'var(--green)':'var(--red)';
+}
+
+function closeBalModal(){document.getElementById('balModal').style.display='none';}
+
+function saveBalMonth(){
+  const dateISO=document.getElementById('bmDate').value;
+  if(!dateISO){alert('Ingresá la fecha');return;}
+  const tcmep=getNum('bmTcmep');
+  if(!tcmep){alert('Ingresá el TC MEP');return;}
+
+  const iol_ars=getNum('bmIolArs'),mpago=getNum('bmMpago'),pfijo=getNum('bmPfijo');
+  const efec_ars=getNum('bmEfecArs'),bancos=getNum('bmBancos');
+  const iol_usd=getNum('bmIolUsd'),cripto=getNum('bmCripto');
+  const realestate=getNum('bmRealEstate'),efec_usd=getNum('bmEfecUsd');
+  const deudas_ars=getNum('bmDeudasArs'),deudas_usd=getNum('bmDeudasUsd');
+
+  const arsUSD=Math.round((iol_ars+mpago+pfijo+efec_ars+bancos)/tcmep);
+  const total_usd=arsUSD+iol_usd+cripto+realestate+efec_usd;
+  const total_ars=Math.round(total_usd*tcmep);
+  const saldo_usd=total_usd-deudas_usd-Math.round(deudas_ars/tcmep);
+  const saldo_ars=Math.round(saldo_usd*tcmep);
+  const d=formatBalDate(dateISO);
+
+  const entry={d,iol_ars,mpago,pfijo,efec_ars,bancos,tcmep,
+    iol_usd,cripto,realestate,efec_usd,
+    deudas_ars,deudas_usd,
+    total_ars,total_usd,saldo_ars,saldo_usd,
+    var_pct:null,var_usd:null};
+
+  let months=JSON.parse(localStorage.getItem('bal_months')||'[]');
+  const idx=months.findIndex(m=>m.d===d);
+  if(idx>=0)months[idx]=entry;
+  else months.push(entry);
+  localStorage.setItem('bal_months',JSON.stringify(months));
+
+  closeBalModal();
+  renderBalance();
+}
+
+function deleteBalMonth(){
+  if(!_balEditDate)return;
+  if(!confirm('¿Eliminar este mes?'))return;
+  let months=JSON.parse(localStorage.getItem('bal_months')||'[]');
+  months=months.filter(m=>m.d!==_balEditDate);
+  localStorage.setItem('bal_months',JSON.stringify(months));
+  closeBalModal();
+  renderBalance();
+}
 const BALANCE_DATA=[
   {d:'31/7/2022',iol_ars:105705,mpago:26501,pfijo:104647,efec_ars:6470,bancos:150,tcmep:274,iol_usd:1,cripto:512,realestate:258,efec_usd:3625,deudas_ars:0,deudas_usd:0,total_ars:1449979,total_usd:5285,saldo_ars:1449979,saldo_usd:5285,var_pct:null,var_usd:null},
   {d:'1/9/2022',iol_ars:104778,mpago:4873,pfijo:96147,efec_ars:1200,bancos:150,tcmep:280,iol_usd:2,cripto:558,realestate:259,efec_usd:3625,deudas_ars:0,deudas_usd:0,total_ars:1451303,total_usd:5186,saldo_ars:1451303,saldo_usd:5186,var_pct:-1.87,var_usd:-99},
@@ -2598,8 +2781,35 @@ function setBalStack(mode){
   renderBalStack();
 }
 
+function getAllBalData(){
+  // Merge hardcoded historical + user-added months
+  const userMonths=JSON.parse(localStorage.getItem('bal_months')||'[]');
+  const userMap=Object.fromEntries(userMonths.map(m=>[m.d,m]));
+  // Override historical with user edits if same date, then add new user months
+  const historicalDates=new Set(BALANCE_DATA.map(r=>r.d));
+  const merged=[
+    ...BALANCE_DATA.map(r=>userMap[r.d]?{...userMap[r.d],_user:true}:r),
+    ...userMonths.filter(m=>!historicalDates.has(m.d)).map(m=>({...m,_user:true}))
+  ];
+  // Sort by date
+  merged.sort((a,b)=>{
+    const pa=a.d.split('/').reverse().join('');
+    const pb=b.d.split('/').reverse().join('');
+    return pa.localeCompare(pb);
+  });
+  // Recalculate var_pct and var_usd
+  for(let i=1;i<merged.length;i++){
+    const prev=merged[i-1],cur=merged[i];
+    if(prev.saldo_usd&&cur.saldo_usd){
+      cur.var_usd=cur.saldo_usd-prev.saldo_usd;
+      cur.var_pct=((cur.saldo_usd/prev.saldo_usd)-1)*100;
+    }
+  }
+  return merged;
+}
+
 function renderBalance(){
-  const D=BALANCE_DATA;
+  const D=getAllBalData();
   const labels=D.map(r=>r.d);
   const last=D[D.length-1];
   const first=D[0];
@@ -2682,6 +2892,7 @@ function renderBalance(){
     <th style="${thCls}">Patrimonio USD</th>
     <th style="${thCls}">Var %</th>
     <th style="${thCls}">Var USD</th>
+    <th style="${thCls}"></th>
   </tr>`;
 
   const fU=v=>'$'+v.toLocaleString();
@@ -2713,6 +2924,7 @@ function renderBalance(){
       <td style="${tdS};font-weight:700;color:#fff;">${fU(r.saldo_usd)}</td>
       <td style="${tdS}" class="${pctCls}">${r.var_pct!==null?(r.var_pct>=0?'+':'')+r.var_pct.toFixed(2)+'%':'—'}</td>
       <td style="${tdS}" class="${varCls}">${r.var_usd!==null?(r.var_usd>=0?'+$':'-$')+Math.abs(r.var_usd).toLocaleString():'—'}</td>
+      <td style="${tdS};">${r._user?`<button onclick="openBalModal('${r.d}')" style="background:transparent;border:1px solid var(--border2);color:var(--text3);border-radius:3px;padding:2px 8px;font-size:12px;cursor:pointer;" title="Editar">✏</button>`:'<span style="color:var(--border2);font-size:10px;">hist</span>'}</td>
     </tr>`;
   }).join('');
 }
