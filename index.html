@@ -425,9 +425,10 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
       <th onclick="sortPfTable('pctPortfolio')" style="cursor:pointer;">% PORTFOLIO <span class="pf-sort-icon" data-col="pctPortfolio"></span></th>
       <th onclick="sortPfTable('plDol')" style="cursor:pointer;">P&L $ <span class="pf-sort-icon" data-col="plDol"></span></th>
       <th onclick="sortPfTable('plPct')" style="cursor:pointer;">P&L % <span class="pf-sort-icon" data-col="plPct"></span></th>
+      <th onclick="sortPfTable('tir')" style="cursor:pointer;">TIR % <span class="pf-sort-icon" data-col="tir"></span></th>
       <th></th>
     </tr></thead>
-    <tbody id="pfTbody"><tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr></tbody>
+    <tbody id="pfTbody"><tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr></tbody>
   </table>
 </div>
 
@@ -2995,6 +2996,71 @@ let pfCharts={pie:null,line:null};
 
 function savePf(){localStorage.setItem('pf_positions',JSON.stringify(pfPositions));}
 
+// ── TIR (XIRR) ──
+// Solves for the annualized rate r such that sum(amount_i / (1+r)^(days_i/365)) = 0
+function xirr(cashflows){
+  if(!cashflows||cashflows.length<2)return null;
+  const hasNeg=cashflows.some(c=>c.amount<0);
+  const hasPos=cashflows.some(c=>c.amount>0);
+  if(!hasNeg||!hasPos)return null; // needs at least one outflow and one inflow
+
+  const times=cashflows.map(c=>new Date(c.date).getTime());
+  const t0=Math.min(...times);
+  const days=times.map(t=>(t-t0)/86400000);
+  const amounts=cashflows.map(c=>c.amount);
+
+  const npv=r=>amounts.reduce((s,a,i)=>s+a/Math.pow(1+r,days[i]/365),0);
+  const dnpv=r=>amounts.reduce((s,a,i)=>s-a*(days[i]/365)/Math.pow(1+r,days[i]/365+1),0);
+
+  // Newton-Raphson
+  let r=0.1;
+  for(let i=0;i<100;i++){
+    const f=npv(r);
+    const df=dnpv(r);
+    if(Math.abs(df)<1e-12)break;
+    const next=r-f/df;
+    if(!isFinite(next))break;
+    if(Math.abs(next-r)<1e-7)return next<=-0.999?null:next;
+    r=Math.max(next,-0.9999);
+  }
+
+  // Fallback: bisection over a wide range
+  let lo=-0.9999,hi=10;
+  let flo=npv(lo),fhi=npv(hi);
+  if(flo*fhi>0)return null; // no sign change in range — can't bracket a root
+  for(let i=0;i<200;i++){
+    const mid=(lo+hi)/2;
+    const fmid=npv(mid);
+    if(Math.abs(fmid)<1e-6)return mid;
+    if(flo*fmid<0){hi=mid;fhi=fmid;}else{lo=mid;flo=fmid;}
+  }
+  return (lo+hi)/2;
+}
+
+// Historical cash flows (compras negativas, ventas y dividendos positivos) — sin incluir el valor actual
+function buildCashflowsForTicker(ticker){
+  const cfs=[];
+  for(const p of pfPositions.filter(p=>p.ticker===ticker)){
+    cfs.push({date:p.date,amount:-(p.cost*(p.ratio||1)*p.shares)});
+  }
+  for(const e of realizedEvents.filter(e=>e.ticker===ticker)){
+    if(e.type==='venta')cfs.push({date:e.date,amount:(e.pricePerCedearUSD??0)*(e.cedears??0)});
+    else if(e.type==='dividendo')cfs.push({date:e.date,amount:e.amtUSD||0});
+  }
+  return cfs;
+}
+function buildAllCashflows(){
+  const cfs=[];
+  for(const p of pfPositions){
+    cfs.push({date:p.date,amount:-(p.cost*(p.ratio||1)*p.shares)});
+  }
+  for(const e of realizedEvents){
+    if(e.type==='venta')cfs.push({date:e.date,amount:(e.pricePerCedearUSD??0)*(e.cedears??0)});
+    else if(e.type==='dividendo')cfs.push({date:e.date,amount:e.amtUSD||0});
+  }
+  return cfs;
+}
+
 // ── PORTFOLIO MODAL ──
 // CEDEAR ratios — CEDEARs per 1 NYSE/ADR share — Fuente: BYMA 03/02/2026
 const CEDEAR_RATIOS={
@@ -3618,7 +3684,7 @@ async function renderPortfolio(){
   const tbody=document.getElementById('pfTbody');
   const summary=document.getElementById('pfSummary');
   if(!pfPositions.length){
-    tbody.innerHTML='<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr>';
+    tbody.innerHTML='<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr>';
     summary.innerHTML='';
     document.getElementById('pfChartsWrap').style.display='none';
     return;
@@ -3659,11 +3725,15 @@ async function renderPortfolio(){
     g.currentVal=(g.price??0)*g.shares;
   }
   // Compute grouped metrics
+  const todayStr=new Date().toISOString().slice(0,10);
   const groupedRows=Object.values(grouped).map(g=>{
     const avgCostPerShare=g.shares>0?g.costVal/g.shares:0; // weighted avg USD per NYSE share
     const plDol=g.currentVal?g.currentVal-g.costVal:null;
     const plPct=g.costVal>0&&plDol!==null?(plDol/g.costVal)*100:null;
-    return{...g,cost:avgCostPerShare,plDol,plPct};
+    const cfs=buildCashflowsForTicker(g.ticker);
+    if(g.currentVal)cfs.push({date:todayStr,amount:g.currentVal});
+    const tir=xirr(cfs);
+    return{...g,cost:avgCostPerShare,plDol,plPct,tir};
   });
 
   // Summary cards use original rows (for accuracy)
@@ -3681,12 +3751,18 @@ async function renderPortfolio(){
   },0);
   const dailyPLPct=totalVal>0?(dailyPL/totalVal)*100:0;
 
+  // TIR total del portfolio
+  const totalCfs=buildAllCashflows();
+  if(totalVal>0)totalCfs.push({date:todayStr,amount:totalVal});
+  const portfolioTIR=xirr(totalCfs);
+
   summary.innerHTML=`
     <div class="pf-card"><div class="pf-card-label">VALOR ACTUAL</div><div class="pf-card-val">${fM(totalVal)}</div></div>
     <div class="pf-card"><div class="pf-card-label">COSTO TOTAL</div><div class="pf-card-val">${fM(totalCost)}</div></div>
     <div class="pf-card"><div class="pf-card-label">P&L TOTAL $</div><div class="pf-card-val ${totalPL>=0?'up':'down'}">${fD(totalPL)}</div></div>
     <div class="pf-card"><div class="pf-card-label">P&L TOTAL %</div><div class="pf-card-val ${totalPLPct>=0?'up':'down'}">${totalPLPct>=0?'+':''}${totalPLPct.toFixed(2)}%</div></div>
     <div class="pf-card"><div class="pf-card-label">P&L DIARIO</div><div class="pf-card-val ${dailyPL>=0?'up':'down'}">${fD(dailyPL)} <span style="font-size:12px;">(${dailyPLPct>=0?'+':''}${dailyPLPct.toFixed(2)}%)</span></div></div>
+    <div class="pf-card"><div class="pf-card-label">TIR ANUALIZADA</div><div class="pf-card-val ${portfolioTIR==null?'':portfolioTIR>=0?'up':'down'}">${portfolioTIR!=null?(portfolioTIR*100>=0?'+':'')+(portfolioTIR*100).toFixed(2)+'%':'—'}</div></div>
     <div class="pf-card" onclick="openRealizedPanel()" style="cursor:pointer;" title="Ver detalle">
       <div class="pf-card-label">GANANCIAS REALIZADAS</div>
       <div class="pf-card-val" id="realizedCardVal" style="color:var(--amber);">—</div>
@@ -3718,12 +3794,13 @@ async function renderPortfolio(){
     <td style="color:var(--text2);">${g.pctPortfolio!=null?g.pctPortfolio.toFixed(1)+'%':'—'}</td>
     <td style="font-weight:500;color:${g.plDol===null?'var(--text2)':g.plDol>=0?'var(--green)':'var(--red)'};">${g.plDol!==null?fD(g.plDol):'—'}</td>
     <td style="font-weight:500;color:${g.plPct===null?'var(--text2)':g.plPct>=0?'var(--green)':'var(--red)'};">${g.plPct!==null?(g.plPct>=0?'+':'')+g.plPct.toFixed(2)+'%':'—'}</td>
+    <td style="font-weight:500;color:${g.tir==null?'var(--text2)':g.tir>=0?'var(--green)':'var(--red)'};" title="TIR anualizada (XIRR)">${g.tir!=null?(g.tir*100>=0?'+':'')+(g.tir*100).toFixed(2)+'%':'—'}</td>
     <td onclick="event.stopPropagation()"><button class="btn" onclick="deletePfTicker('${g.ticker}')" style="padding:3px 8px;font-size:10px;color:var(--red);border-color:var(--red);">✕</button></td>
   </tr>`).join('');
 
   // Charts
   document.getElementById('pfChartsWrap').style.display='grid';
-  renderPfCharts(groupedRows);
+  renderPfCharts(groupedRows,rows);
   updateRealizedCard();
 }
 
@@ -3793,25 +3870,26 @@ async function buildPortfolioHistory(groupedRows){
 
   // Use already-loaded weekly closes from stockData, or fetch if missing
   const priceMap={};
-  const toFetch=groupedRows.filter(r=>!stockData[r.ticker]?.wCloses?.length);
+  const uniqueTickers=[...new Set(groupedRows.map(r=>r.ticker))];
+  const toFetch=uniqueTickers.filter(t=>!stockData[t]?.wCloses?.length);
 
   // Fetch missing tickers
-  await Promise.all(toFetch.map(async r=>{
+  await Promise.all(toFetch.map(async ticker=>{
     try{
-      const chart=await yahooFetch(r.ticker);
+      const chart=await yahooFetch(ticker);
       const ts=chart.timestamp||[];
       const cl=chart.indicators?.quote?.[0]?.close||[];
-      priceMap[r.ticker]={ts,cl};
+      priceMap[ticker]={ts,cl};
     }catch(e){}
   }));
 
   // Use stockData weekly closes for loaded tickers
-  for(const r of groupedRows){
-    if(!priceMap[r.ticker]&&stockData[r.ticker]?.wCloses?.length){
+  for(const ticker of uniqueTickers){
+    if(!priceMap[ticker]&&stockData[ticker]?.wCloses?.length){
       // Convert weekly to ts/cl format using wTimestamps
-      priceMap[r.ticker]={
-        ts:stockData[r.ticker].wTimestamps,
-        cl:stockData[r.ticker].wCloses,
+      priceMap[ticker]={
+        ts:stockData[ticker].wTimestamps,
+        cl:stockData[ticker].wCloses,
       };
     }
   }
@@ -3858,7 +3936,7 @@ async function buildPortfolioHistory(groupedRows){
   renderLineChart();
 }
 
-function renderPfCharts(rows){
+function renderPfCharts(rows,allPositions){
   document.getElementById('pfChartsWrap').style.display='block';
 
   if(pfCharts.pie){pfCharts.pie.destroy();pfCharts.pie=null;}
@@ -3876,7 +3954,7 @@ function renderPfCharts(rows){
           plugins:{legend:{display:true,position:'bottom',labels:{font:{size:10},color:'#b0b0b0',boxWidth:10,padding:5}}}}
       });
     }
-    buildPortfolioHistory(rows);
+    buildPortfolioHistory(allPositions??rows);
   },50);
 }
 
@@ -3898,3 +3976,6 @@ async function refreshPortfolio(){
 </script>
 </body>
 </html>
+
+
+    
