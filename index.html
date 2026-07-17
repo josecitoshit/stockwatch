@@ -268,13 +268,6 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
     <option value="sma200WDev">vs SMA200W %</option>
     <option value="vsSP500">vs S&P500 20W</option>
     <option value="sma20WDev">vs SMA20W %</option>
-    <option value="pe">P/E</option>
-    <option value="pb">P/B</option>
-    <option value="fcfYield">FCF Yield</option>
-    <option value="divYield">Div Yield</option>
-    <option value="roe">ROE</option>
-    <option value="roa">ROA</option>
-    <option value="eps">EPS</option>
     <option value="shortFloat">SHORT %</option>
   </select>
   <select id="sortDir" onchange="renderTable()">
@@ -311,14 +304,8 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
           <th onclick="sortBy('sma20WDev')" id="th-sma20WDev">vs SMA20W</th>
           <th onclick="sortBy('distHigh52')" id="th-distHigh52">↓ MÁX52</th>
           <th onclick="sortBy('distLow52')" id="th-distLow52">↑ MÍN52</th>
-          <th onclick="sortBy('pe')" id="th-pe" class="th-sep">P/E</th>
-          <th onclick="sortBy('pb')" id="th-pb">P/B</th>
-          <th onclick="sortBy('fcfYield')" id="th-fcfYield">FCF YLD</th>
-          <th onclick="sortBy('divYield')" id="th-divYield">DIV YLD</th>
-          <th onclick="sortBy('roe')" id="th-roe">ROE</th>
-          <th onclick="sortBy('roa')" id="th-roa">ROA</th>
-          <th onclick="sortBy('eps')" id="th-eps">EPS</th>
-          <th onclick="sortBy('shortFloat')" id="th-shortFloat">SHORT %</th>
+          <th onclick="sortBy('shortFloat')" id="th-shortFloat" class="th-sep">SHORT %</th>
+          <th onclick="sortBy('relVol')" id="th-relVol">REL VOL</th>
           <th>PRÓX. EARNINGS</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
@@ -1299,7 +1286,7 @@ function mkDual(id,qLbls,priceData,leftDatasets,rightDatasets,rightTickFmt,leftT
   if(!ctx)return;
   if(fsCharts[id])fsCharts[id].destroy();
   // Price: visible line but no axis labels/title — pastel rainbow gradient
-  const priceDs={label:'Precio',data:priceData,type:'line',borderColor:pastelGradientH(ctx),borderWidth:2.5,pointRadius:0,tension:0.35,fill:false,yAxisID:'yPrice',order:0};
+  const priceDs={label:'Precio',data:priceData,type:'line',borderColor:PASTEL.purple,borderWidth:2.5,pointRadius:0,tension:0.35,fill:false,yAxisID:'yPrice',order:0};
   const allDs=[
     ...leftDatasets.map(d=>({...d,yAxisID:'yLeft',order:2})),
     priceDs,
@@ -1680,6 +1667,16 @@ async function startLoad(){
       const ticker20WReturn=wc.length>=21?((wc[wc.length-1]/wc[wc.length-21])-1)*100:null;
       const vsSP500=ticker20WReturn!==null?ticker20WReturn-spy:null;
 
+      // Relative volume: this week's volume vs the trailing 20-week average
+      const wv=wk.v;
+      let relVol=null;
+      if(wv.length>21){
+        const curVol=wv[wv.length-1];
+        const priorSlice=wv.slice(wv.length-21,wv.length-1);
+        const avgVol=priorSlice.reduce((a,b)=>a+b,0)/priorSlice.length;
+        relVol=avgVol>0?+(curVol/avgVol).toFixed(2):null;
+      }
+
       const fv=parseFV(fvHtml);
       const poly=calcPolyFund(fin,det,price);
       // Hardcoded fallbacks for tickers where scraping fails
@@ -1696,7 +1693,7 @@ async function startLoad(){
 
       stockData[ticker]={
         ticker,price,chg,chgPct,high52,low52,distHigh52,distLow52,
-        sma20W,sma20WDev,sma200W,sma200WDev,vsSP500,
+        sma20W,sma20WDev,sma200W,sma200WDev,vsSP500,relVol,
         pe,pb,roe,roa,fcfYield,divYield,eps,marketCap,shortFloat,
         rsiW:last(rsiWA),macdW:last(macdWO.macd),macdSigW:last(macdWO.signal),
         wCloses:wc,wTimestamps:wk.t,sharesOutstanding,
@@ -1810,7 +1807,7 @@ function renderTable(){
   const totalRows=rows.length;
   document.getElementById('countBadge').textContent=totalRows+' tickers';
   const tbody=document.getElementById('tbody');tbody.innerHTML='';
-  const NCOLS=18;
+  const NCOLS=12;
   const SK='<td><span class="skel" style="width:38px;height:10px;">&nbsp;</span></td>';
 
   const renderRow=(d)=>{
@@ -1831,14 +1828,8 @@ function renderTable(){
         <td class="${signCls(d.sma20WDev)}">${fPct(d.sma20WDev)}</td>
         <td class="${signCls(d.distHigh52)}">${d.distHigh52!=null?d.distHigh52.toFixed(1)+'%':'—'}</td>
         <td class="${signCls(d.distLow52)}">${d.distLow52!=null?'+'+d.distLow52.toFixed(1)+'%':'—'}</td>
-        <td class="td-sep">${fN(d.pe,1)}</td>
-        <td>${fN(d.pb,1)}</td>
-        <td>${d.fcfYield!=null?fN(d.fcfYield,1)+'%':'—'}</td>
-        <td>${d.divYield!=null?fN(d.divYield,2)+'%':'—'}</td>
-        <td>${d.roe!=null?fN(d.roe,1)+'%':'—'}</td>
-        <td>${d.roa!=null?fN(d.roa,1)+'%':'—'}</td>
-        <td>${d.eps!=null?'$'+fN(d.eps,2):'—'}</td>
-        <td class="${shortCls}">${d.shortFloat!=null?d.shortFloat.toFixed(1)+'%':'—'}</td>
+        <td class="td-sep ${shortCls}">${d.shortFloat!=null?d.shortFloat.toFixed(1)+'%':'—'}</td>
+        <td style="${d.relVol!=null&&d.relVol>=2?'color:var(--amber);font-weight:700;':''}">${d.relVol!=null?d.relVol.toFixed(2)+'x':'—'}</td>
         <td data-earn-cell="${d.ticker}">${formatEarningsCell(earningsCache[d.ticker]?.date)}</td>`;
       tr.onclick=()=>openDetail(d.ticker);
     }
