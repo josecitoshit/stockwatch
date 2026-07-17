@@ -262,12 +262,14 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
     <option value="ticker">Ticker</option>
     <option value="price">Precio</option>
     <option value="chgPct" selected>Cambio %</option>
-    <option value="rsiW">RSI</option>
+    <option value="vsSP500">vs S&P500 20W</option>
+    <option value="sma200WDev">vs SMA200W %</option>
+    <option value="sma20WDev">vs SMA20W %</option>
     <option value="distHigh52">Dist. Máx 52s</option>
     <option value="distLow52">Dist. Mín 52s</option>
-    <option value="sma200WDev">vs SMA200W %</option>
-    <option value="vsSP500">vs S&P500 20W</option>
-    <option value="sma20WDev">vs SMA20W %</option>
+    <option value="relVol">Rel Vol</option>
+    <option value="rsiW">RSI</option>
+    <option value="macdHist">MACD</option>
     <option value="shortFloat">SHORT %</option>
   </select>
   <select id="sortDir" onchange="renderTable()">
@@ -298,14 +300,15 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
           <th onclick="sortBy('ticker')" id="th-ticker">TICKER</th>
           <th onclick="sortBy('price')" id="th-price">PRECIO</th>
           <th onclick="sortBy('chgPct')" id="th-chgPct">CHG %</th>
-          <th onclick="sortBy('rsiW')" id="th-rsiW" class="th-sep">RSI</th>
-          <th onclick="sortBy('vsSP500')" id="th-vsSP500">vs SP500 20W</th>
+          <th onclick="sortBy('vsSP500')" id="th-vsSP500" class="th-sep">vs SP500 20W</th>
           <th onclick="sortBy('sma200WDev')" id="th-sma200WDev">vs SMA200W</th>
           <th onclick="sortBy('sma20WDev')" id="th-sma20WDev">vs SMA20W</th>
           <th onclick="sortBy('distHigh52')" id="th-distHigh52">↓ MÁX52</th>
           <th onclick="sortBy('distLow52')" id="th-distLow52">↑ MÍN52</th>
-          <th onclick="sortBy('shortFloat')" id="th-shortFloat" class="th-sep">SHORT %</th>
-          <th onclick="sortBy('relVol')" id="th-relVol">REL VOL</th>
+          <th onclick="sortBy('relVol')" id="th-relVol" class="th-sep">REL VOL</th>
+          <th onclick="sortBy('rsiW')" id="th-rsiW">RSI</th>
+          <th onclick="sortBy('macdHist')" id="th-macdHist">MACD</th>
+          <th onclick="sortBy('shortFloat')" id="th-shortFloat">SHORT %</th>
           <th>PRÓX. EARNINGS</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
@@ -414,10 +417,9 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
       <th onclick="sortPfTable('plDol')" style="cursor:pointer;">P&L $ <span class="pf-sort-icon" data-col="plDol"></span></th>
       <th onclick="sortPfTable('plPct')" style="cursor:pointer;">P&L % <span class="pf-sort-icon" data-col="plPct"></span></th>
       <th onclick="sortPfTable('tir')" style="cursor:pointer;">TIR % <span class="pf-sort-icon" data-col="tir"></span></th>
-      <th>PRÓX. EARNINGS</th>
       <th></th>
     </tr></thead>
-    <tbody id="pfTbody"><tr><td colspan="13" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr></tbody>
+    <tbody id="pfTbody"><tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr></tbody>
   </table>
 </div>
 
@@ -1658,6 +1660,8 @@ async function startLoad(){
       const sma200WA=calcSMA(wc,200);
       const rsiWA=wc.length>15?calcRSI(wc):[];
       const macdWO=wc.length>30?calcMACD(wc):{macd:[],signal:[],hist:[]};
+      const macdWLast=last(macdWO.macd),macdSigWLast=last(macdWO.signal);
+      const macdHist=(macdWLast!=null&&macdSigWLast!=null)?+(macdWLast-macdSigWLast).toFixed(3):null;
       const sma20W=last(sma20WA);
       const sma200W=last(sma200WA);
       const sma20WDev=(price&&sma20W)?((price/sma20W)-1)*100:null;
@@ -1695,7 +1699,7 @@ async function startLoad(){
         ticker,price,chg,chgPct,high52,low52,distHigh52,distLow52,
         sma20W,sma20WDev,sma200W,sma200WDev,vsSP500,relVol,
         pe,pb,roe,roa,fcfYield,divYield,eps,marketCap,shortFloat,
-        rsiW:last(rsiWA),macdW:last(macdWO.macd),macdSigW:last(macdWO.signal),
+        rsiW:last(rsiWA),macdW:last(macdWO.macd),macdSigW:last(macdWO.signal),macdHist,
         wCloses:wc,wTimestamps:wk.t,sharesOutstanding,
         rallies:null,drops:null,situation:null, // eco pending
         ecoReady:false,
@@ -1807,7 +1811,7 @@ function renderTable(){
   const totalRows=rows.length;
   document.getElementById('countBadge').textContent=totalRows+' tickers';
   const tbody=document.getElementById('tbody');tbody.innerHTML='';
-  const NCOLS=12;
+  const NCOLS=13;
   const SK='<td><span class="skel" style="width:38px;height:10px;">&nbsp;</span></td>';
 
   const renderRow=(d)=>{
@@ -1822,14 +1826,15 @@ function renderTable(){
         <td><span class="ts">${d.ticker}</span>${portfolioTickers.has(d.ticker)?'<span style="font-size:9px;color:var(--green);margin-left:4px;">●</span>':''}</td>
         <td style="color:#fff;font-weight:500;">${fP(d.price)}</td>
         <td class="${signCls(d.chgPct)}">${d.chgPct!=null?(d.chgPct>=0?'+':'')+d.chgPct.toFixed(2)+'%':'—'}</td>
-        <td class="td-sep ${rsiCls}" style="font-weight:700;">${d.rsiW!=null?d.rsiW.toFixed(1):'—'}</td>
-        <td class="${signCls(d.vsSP500)}">${fPct(d.vsSP500)}</td>
+        <td class="td-sep ${signCls(d.vsSP500)}">${fPct(d.vsSP500)}</td>
         <td class="${signCls(d.sma200WDev)}">${fPct(d.sma200WDev)}</td>
         <td class="${signCls(d.sma20WDev)}">${fPct(d.sma20WDev)}</td>
         <td class="${signCls(d.distHigh52)}">${d.distHigh52!=null?d.distHigh52.toFixed(1)+'%':'—'}</td>
         <td class="${signCls(d.distLow52)}">${d.distLow52!=null?'+'+d.distLow52.toFixed(1)+'%':'—'}</td>
-        <td class="td-sep ${shortCls}">${d.shortFloat!=null?d.shortFloat.toFixed(1)+'%':'—'}</td>
-        <td style="${d.relVol!=null&&d.relVol>=2?'color:var(--amber);font-weight:700;':''}">${d.relVol!=null?d.relVol.toFixed(2)+'x':'—'}</td>
+        <td class="td-sep" style="${d.relVol!=null&&d.relVol>=2?'color:var(--amber);font-weight:700;':''}">${d.relVol!=null?d.relVol.toFixed(2)+'x':'—'}</td>
+        <td class="${rsiCls}" style="font-weight:700;">${d.rsiW!=null?d.rsiW.toFixed(1):'—'}</td>
+        <td class="${d.macdHist!=null?(d.macdHist>=0?'up':'down'):''}" style="font-weight:700;">${d.macdHist!=null?(d.macdHist>=0?'+':'')+d.macdHist.toFixed(2):'—'}</td>
+        <td class="${shortCls}">${d.shortFloat!=null?d.shortFloat.toFixed(1)+'%':'—'}</td>
         <td data-earn-cell="${d.ticker}">${formatEarningsCell(earningsCache[d.ticker]?.date)}</td>`;
       tr.onclick=()=>openDetail(d.ticker);
     }
@@ -3819,7 +3824,7 @@ async function renderPortfolio(){
   const tbody=document.getElementById('pfTbody');
   const summary=document.getElementById('pfSummary');
   if(!pfPositions.length){
-    tbody.innerHTML='<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr>';
+    tbody.innerHTML='<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr>';
     summary.innerHTML='';
     document.getElementById('pfChartsWrap').style.display='none';
     return;
@@ -3930,7 +3935,6 @@ async function renderPortfolio(){
     <td style="font-weight:500;color:${g.plDol===null?'var(--text2)':g.plDol>=0?'var(--green)':'var(--red)'};">${g.plDol!==null?fD(g.plDol):'—'}</td>
     <td style="font-weight:500;color:${g.plPct===null?'var(--text2)':g.plPct>=0?'var(--green)':'var(--red)'};">${g.plPct!==null?(g.plPct>=0?'+':'')+g.plPct.toFixed(2)+'%':'—'}</td>
     <td style="font-weight:500;color:${g.tir==null?'var(--text2)':g.tir>=0?'var(--green)':'var(--red)'};" title="TIR anualizada (XIRR)">${g.tir!=null?(g.tir*100>=0?'+':'')+(g.tir*100).toFixed(2)+'%':'—'}</td>
-    <td data-earn-cell="${g.ticker}">${formatEarningsCell(earningsCache[g.ticker]?.date)}</td>
     <td onclick="event.stopPropagation()"><button class="btn" onclick="deletePfTicker('${g.ticker}')" style="padding:3px 8px;font-size:10px;color:var(--red);border-color:var(--red);">✕</button></td>
   </tr>`).join('');
 
@@ -3938,7 +3942,6 @@ async function renderPortfolio(){
   document.getElementById('pfChartsWrap').style.display='grid';
   renderPfCharts(groupedRows,rows);
   updateRealizedCard();
-  ensureEarningsDates(groupedRows.map(g=>g.ticker));
 }
 
 let pfPeriod='1M';
