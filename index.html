@@ -319,6 +319,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
           <th onclick="sortBy('roa')" id="th-roa">ROA</th>
           <th onclick="sortBy('eps')" id="th-eps">EPS</th>
           <th onclick="sortBy('shortFloat')" id="th-shortFloat">SHORT %</th>
+          <th>PRÓX. EARNINGS</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
@@ -1279,8 +1280,8 @@ const fmtRatio=v=>v?.toFixed(2)??'';
 const fmtPct=v=>v!==null?v.toFixed(1)+'%':'';
 
 // ── PASTEL PALETTE (M1) — used across every chart in the app ──
-const PASTEL={pink:'#ffb3ba',orange:'#ffdfba',yellow:'#ffffba',green:'#baffc9',blue:'#bae1ff',purple:'#d7baff'};
-const PASTEL_CYCLE=[PASTEL.pink,PASTEL.orange,PASTEL.yellow,PASTEL.green,PASTEL.blue,PASTEL.purple,'#ffcce0','#c9f0ff','#e0d4ff','#d4ffe0'];
+const PASTEL={pink:'#ff8fa8',orange:'#ffc182',yellow:'#fdec6b',green:'#7ef2a3',blue:'#7ecbff',purple:'#c3a3ff'};
+const PASTEL_CYCLE=[PASTEL.pink,PASTEL.orange,PASTEL.yellow,PASTEL.green,PASTEL.blue,PASTEL.purple,'#ffa8d1','#a8e4ff','#d0b8ff','#a8ffc4'];
 function pastelGradientH(ctx,width=600){
   const g=ctx.createLinearGradient(0,0,width,0);
   g.addColorStop(0,PASTEL.pink);g.addColorStop(.2,PASTEL.orange);g.addColorStop(.4,PASTEL.yellow);
@@ -1298,7 +1299,7 @@ function mkDual(id,qLbls,priceData,leftDatasets,rightDatasets,rightTickFmt,leftT
   if(!ctx)return;
   if(fsCharts[id])fsCharts[id].destroy();
   // Price: visible line but no axis labels/title — pastel rainbow gradient
-  const priceDs={label:'Precio',data:priceData,type:'line',borderColor:pastelGradientH(ctx),borderWidth:2.5,pointRadius:0,fill:false,yAxisID:'yPrice',order:0};
+  const priceDs={label:'Precio',data:priceData,type:'line',borderColor:pastelGradientH(ctx),borderWidth:2.5,pointRadius:0,tension:0.35,fill:false,yAxisID:'yPrice',order:0};
   const allDs=[
     ...leftDatasets.map(d=>({...d,yAxisID:'yLeft',order:2})),
     priceDs,
@@ -1531,8 +1532,8 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding){
 
   // Chart 1: P/E + P/B left, Revenue right, Price hidden
   mkDual('fsCh1',qLbls,priceAtQ,[
-    {label:'P/E',data:pe,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:3,fill:false},
-    {label:'P/B',data:pb,type:'line',borderColor:PASTEL.pink,borderWidth:2,pointRadius:3,fill:false},
+    {label:'P/E',data:pe,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:0,tension:0.35,fill:false},
+    {label:'P/B',data:pb,type:'line',borderColor:PASTEL.pink,borderWidth:2,pointRadius:0,tension:0.35,fill:false},
   ],[
     {label:'Revenue',data:rev,type:'bar',backgroundColor:PASTEL.green+'40',borderRadius:2},
   ],fmtBig,v=>v?.toFixed(1)+'x');
@@ -1540,22 +1541,22 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding){
   if(!noData){
     // Chart 2: ROE+ROA left, Net Income right, Price hidden
     mkDual('fsCh2',qLbls,priceAtQ,[
-      {label:'ROE %',data:roe,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:3,fill:false},
-      {label:'ROA %',data:roa,type:'line',borderColor:PASTEL.pink,borderWidth:2,pointRadius:3,fill:false},
+      {label:'ROE %',data:roe,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:0,tension:0.35,fill:false},
+      {label:'ROA %',data:roa,type:'line',borderColor:PASTEL.pink,borderWidth:2,pointRadius:0,tension:0.35,fill:false},
     ],[
       {label:'Net Income',data:ni,type:'bar',backgroundColor:ni.map(v=>v===null?'transparent':v>=0?PASTEL.green+'59':PASTEL.pink+'59'),borderRadius:2},
     ],fmtBig,v=>v?.toFixed(1)+'%');
 
     // Chart 3: Shares left, EPS right, Price hidden
     mkDual('fsCh3',qLbls,priceAtQ,[
-      {label:'Shares Out (M)',data:sharesInterp.map(v=>v?+(v/1e6).toFixed(1):null),type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:3,fill:false},
+      {label:'Shares Out (M)',data:sharesInterp.map(v=>v?+(v/1e6).toFixed(1):null),type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:0,tension:0.35,fill:false},
     ],[
       {label:'EPS',data:eps,type:'bar',backgroundColor:eps.map(v=>v===null?'transparent':v>=0?PASTEL.green+'66':PASTEL.pink+'66'),borderRadius:2},
     ],fmtBig,v=>v?.toFixed(0)+'M');
 
     // Chart 4: Debt/Equity left, Assets+Liabilities+Equity right, Price hidden
     mkDual('fsCh4',qLbls,priceAtQ,[
-      {label:'Debt/Equity',data:debtEq,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:3,fill:false},
+      {label:'Debt/Equity',data:debtEq,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:0,tension:0.35,fill:false},
     ],[
       {label:'Assets',data:assets,type:'bar',backgroundColor:PASTEL.blue+'4d',borderRadius:2},
       {label:'Liabilities',data:liab,type:'bar',backgroundColor:PASTEL.pink+'4d',borderRadius:2},
@@ -1564,9 +1565,9 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding){
 
     // Chart 5: Margins left, Price hidden
     mkDual('fsCh5',qLbls,priceAtQ,[
-      {label:'Gross Margin %',data:gm,type:'line',borderColor:PASTEL.green,borderWidth:2,pointRadius:3,fill:false},
-      {label:'Op. Margin %',data:om,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:3,borderDash:[4,3],fill:false},
-      {label:'Net Margin %',data:nm,type:'line',borderColor:PASTEL.pink,borderWidth:2,pointRadius:3,borderDash:[4,3],fill:false},
+      {label:'Gross Margin %',data:gm,type:'line',borderColor:PASTEL.green,borderWidth:2,pointRadius:0,tension:0.35,fill:false},
+      {label:'Op. Margin %',data:om,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:0,tension:0.35,borderDash:[4,3],fill:false},
+      {label:'Net Margin %',data:nm,type:'line',borderColor:PASTEL.pink,borderWidth:2,pointRadius:0,tension:0.35,borderDash:[4,3],fill:false},
     ],[],null,v=>v?.toFixed(1)+'%');
 
     // Chart 6: Net Cash Flow bars right, FCF per Share line left, Price hidden
@@ -1575,7 +1576,7 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding){
       return(v!==null&&sh&&sh>0)?+(v/sh).toFixed(2):null;
     });
     mkDual('fsCh6',qLbls,priceAtQ,[
-      {label:'FCF/Share',data:fcfPerShare,type:'line',borderColor:PASTEL.green,borderWidth:2,pointRadius:3,fill:false},
+      {label:'FCF/Share',data:fcfPerShare,type:'line',borderColor:PASTEL.green,borderWidth:2,pointRadius:0,tension:0.35,fill:false},
     ],[
       {label:'Net Cash Flow',data:ocf,type:'bar',backgroundColor:ocf.map(v=>v===null?'transparent':v>=0?PASTEL.blue+'59':PASTEL.pink+'59'),borderRadius:2},
     ],fmtBig,v=>'$'+v?.toFixed(2));
@@ -1809,7 +1810,7 @@ function renderTable(){
   const totalRows=rows.length;
   document.getElementById('countBadge').textContent=totalRows+' tickers';
   const tbody=document.getElementById('tbody');tbody.innerHTML='';
-  const NCOLS=17;
+  const NCOLS=18;
   const SK='<td><span class="skel" style="width:38px;height:10px;">&nbsp;</span></td>';
 
   const renderRow=(d)=>{
@@ -1837,7 +1838,8 @@ function renderTable(){
         <td>${d.roe!=null?fN(d.roe,1)+'%':'—'}</td>
         <td>${d.roa!=null?fN(d.roa,1)+'%':'—'}</td>
         <td>${d.eps!=null?'$'+fN(d.eps,2):'—'}</td>
-        <td class="${shortCls}">${d.shortFloat!=null?d.shortFloat.toFixed(1)+'%':'—'}</td>`;
+        <td class="${shortCls}">${d.shortFloat!=null?d.shortFloat.toFixed(1)+'%':'—'}</td>
+        <td data-earn-cell="${d.ticker}">${formatEarningsCell(earningsCache[d.ticker]?.date)}</td>`;
       tr.onclick=()=>openDetail(d.ticker);
     }
     tbody.appendChild(tr);
@@ -1863,6 +1865,7 @@ function renderTable(){
     tbody.appendChild(hdr);
     group.forEach(renderRow);
   }
+  ensureEarningsDates(rows.filter(d=>d.loaded).map(d=>d.ticker));
 }
 function sortBy(col){
   if(sortKey===col)document.getElementById('sortDir').value=sortDir==='desc'?'asc':'desc';
@@ -3197,8 +3200,7 @@ async function ensureEarningsDates(tickerList){
   await withLimit(need.map(ticker=>async()=>{
     const date=await fetchEarningsDate(ticker);
     earningsCache[ticker]={date,fetchedAt:Date.now()};
-    const cell=document.querySelector(`td[data-earn="${CSS.escape(ticker)}"]`);
-    if(cell)cell.innerHTML=formatEarningsCell(date);
+    document.querySelectorAll(`[data-earn-cell="${CSS.escape(ticker)}"]`).forEach(cell=>{cell.innerHTML=formatEarningsCell(date);});
   }),3);
   saveEarningsCache();
 }
@@ -3937,7 +3939,7 @@ async function renderPortfolio(){
     <td style="font-weight:500;color:${g.plDol===null?'var(--text2)':g.plDol>=0?'var(--green)':'var(--red)'};">${g.plDol!==null?fD(g.plDol):'—'}</td>
     <td style="font-weight:500;color:${g.plPct===null?'var(--text2)':g.plPct>=0?'var(--green)':'var(--red)'};">${g.plPct!==null?(g.plPct>=0?'+':'')+g.plPct.toFixed(2)+'%':'—'}</td>
     <td style="font-weight:500;color:${g.tir==null?'var(--text2)':g.tir>=0?'var(--green)':'var(--red)'};" title="TIR anualizada (XIRR)">${g.tir!=null?(g.tir*100>=0?'+':'')+(g.tir*100).toFixed(2)+'%':'—'}</td>
-    <td data-earn="${g.ticker}">${formatEarningsCell(earningsCache[g.ticker]?.date)}</td>
+    <td data-earn-cell="${g.ticker}">${formatEarningsCell(earningsCache[g.ticker]?.date)}</td>
     <td onclick="event.stopPropagation()"><button class="btn" onclick="deletePfTicker('${g.ticker}')" style="padding:3px 8px;font-size:10px;color:var(--red);border-color:var(--red);">✕</button></td>
   </tr>`).join('');
 
