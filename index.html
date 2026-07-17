@@ -426,9 +426,10 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
       <th onclick="sortPfTable('plDol')" style="cursor:pointer;">P&L $ <span class="pf-sort-icon" data-col="plDol"></span></th>
       <th onclick="sortPfTable('plPct')" style="cursor:pointer;">P&L % <span class="pf-sort-icon" data-col="plPct"></span></th>
       <th onclick="sortPfTable('tir')" style="cursor:pointer;">TIR % <span class="pf-sort-icon" data-col="tir"></span></th>
+      <th>PRÓX. EARNINGS</th>
       <th></th>
     </tr></thead>
-    <tbody id="pfTbody"><tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr></tbody>
+    <tbody id="pfTbody"><tr><td colspan="13" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr></tbody>
   </table>
 </div>
 
@@ -846,6 +847,7 @@ let tickers=[...DEFAULT_TICKERS],stockData={},loading=false,selectedTicker=null;
 let sortKey='chgPct',sortDir='desc';
 let pfPositions=JSON.parse(localStorage.getItem('pf_positions')||'[]');
 let realizedEvents=JSON.parse(localStorage.getItem('pf_realized')||'[]');
+let earningsCache=JSON.parse(localStorage.getItem('pf_earnings_cache')||'{}');
 
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 async function withLimit(tasks,limit=3){
@@ -1276,12 +1278,27 @@ const fmtBig=v=>{if(v===null||v===undefined)return '';if(Math.abs(v)>=1e9)return
 const fmtRatio=v=>v?.toFixed(2)??'';
 const fmtPct=v=>v!==null?v.toFixed(1)+'%':'';
 
+// ── PASTEL PALETTE (M1) — used across every chart in the app ──
+const PASTEL={pink:'#ffb3ba',orange:'#ffdfba',yellow:'#ffffba',green:'#baffc9',blue:'#bae1ff',purple:'#d7baff'};
+const PASTEL_CYCLE=[PASTEL.pink,PASTEL.orange,PASTEL.yellow,PASTEL.green,PASTEL.blue,PASTEL.purple,'#ffcce0','#c9f0ff','#e0d4ff','#d4ffe0'];
+function pastelGradientH(ctx,width=600){
+  const g=ctx.createLinearGradient(0,0,width,0);
+  g.addColorStop(0,PASTEL.pink);g.addColorStop(.2,PASTEL.orange);g.addColorStop(.4,PASTEL.yellow);
+  g.addColorStop(.6,PASTEL.green);g.addColorStop(.8,PASTEL.blue);g.addColorStop(1,PASTEL.purple);
+  return g;
+}
+function pastelAreaFill(ctx,color,height=220){
+  const g=ctx.createLinearGradient(0,0,0,height);
+  g.addColorStop(0,color+'40');g.addColorStop(1,color+'00');
+  return g;
+}
+
 function mkDual(id,qLbls,priceData,leftDatasets,rightDatasets,rightTickFmt,leftTickFmt){
   const ctx=document.getElementById(id)?.getContext('2d');
   if(!ctx)return;
   if(fsCharts[id])fsCharts[id].destroy();
-  // Price: visible line but no axis labels/title
-  const priceDs={label:'Precio',data:priceData,type:'line',borderColor:'#33bbff',borderWidth:2,pointRadius:0,fill:false,yAxisID:'yPrice',order:0};
+  // Price: visible line but no axis labels/title — pastel rainbow gradient
+  const priceDs={label:'Precio',data:priceData,type:'line',borderColor:pastelGradientH(ctx),borderWidth:2.5,pointRadius:0,fill:false,yAxisID:'yPrice',order:0};
   const allDs=[
     ...leftDatasets.map(d=>({...d,yAxisID:'yLeft',order:2})),
     priceDs,
@@ -1357,25 +1374,100 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding){
   const wCl5=wIdx5.map(i=>wCloses[i]);
   const wLbls5=wTs5.map(t=>{const d=new Date(t*1000);return(d.getMonth()+1)+'/'+(d.getFullYear()%100);});
 
+  // Detects and fixes outlier points in balance-sheet series (equity, assets, etc).
+  // These are point-in-time "snapshot" values, unlike revenue/net income which are
+  // additive flow values. Some data providers mangle the Q4/fiscal-year-end entry
+  // (e.g. summing across the year instead of reporting the period-end snapshot),
+  // which shows up as a sharp spike or crash isolated to that one quarter.
+  // We flag any point that jumps away from BOTH neighbors by more than maxJumpRatio
+  // and replace it with a linear interpolation between the nearest valid neighbors.
+  // Some data providers report the Q4 entry as the FULL FISCAL YEAR cumulative
+  // value instead of just that quarter (since companies file an annual 10-K, not
+  // a standalone Q4 10-Q, so the vendor has to derive Q4 = FY - (Q1+Q2+Q3) and
+  // sometimes skips that step). This only applies to "flow" items (revenue, net
+  // income, cash flow, etc — things that accumulate over the year), never to
+  // balance-sheet snapshots (equity, assets, shares) where the concept doesn't
+  // exist. When we detect a Q4 value that's much bigger than a typical quarter,
+  // and we have all of Q1/Q2/Q3 for that same fiscal year, we back out the real
+  // Q4 by subtracting them — a much more accurate estimate than just interpolating.
+  function deannualizeQ4(rawArr,labels,threshold=1.8){
+    const out=[...rawArr];
+    const idxByLabel={};
+    labels.forEach((l,i)=>{if(idxByLabel[l]===undefined)idxByLabel[l]=i;});
+    for(let i=0;i<out.length;i++){
+      const m=(labels[i]||'').match(/^(\d{4}) Q4$/);
+      if(!m)continue;
+      const v=rawArr[i];
+      if(v===null||v===undefined)continue;
+      const year=m[1];
+      const q1i=idxByLabel[`${year} Q1`],q2i=idxByLabel[`${year} Q2`],q3i=idxByLabel[`${year} Q3`];
+      if(q1i===undefined||q2i===undefined||q3i===undefined)continue;
+      const q1=rawArr[q1i],q2=rawArr[q2i],q3=rawArr[q3i];
+      if(q1==null||q2==null||q3==null)continue;
+      const avgQ=(Math.abs(q1)+Math.abs(q2)+Math.abs(q3))/3;
+      if(avgQ<=0)continue;
+      // Only treat it as "actually annual" if it's clearly bigger than a normal quarter
+      if(Math.abs(v)>avgQ*threshold){
+        out[i]=+(v-(q1+q2+q3)).toFixed(4);
+      }
+    }
+    return out;
+  }
+
+  function sanitizeSeries(arr,maxJumpRatio=2.2){
+    const flagged=arr.map(v=>v);
+    for(let i=0;i<flagged.length;i++){
+      const v=flagged[i];
+      if(v===null||v===undefined)continue;
+      let prev=null;for(let j=i-1;j>=0;j--){if(arr[j]!==null&&arr[j]!==undefined){prev=arr[j];break;}}
+      let next=null;for(let j=i+1;j<arr.length;j++){if(arr[j]!==null&&arr[j]!==undefined){next=arr[j];break;}}
+      const badVsPrev=prev!=null&&prev>0&&(v<=0||v/prev>maxJumpRatio||prev/v>maxJumpRatio);
+      const badVsNext=next!=null&&next>0&&(v<=0||v/next>maxJumpRatio||next/v>maxJumpRatio);
+      // Only flag if it's an outlier relative to whichever neighbors exist on both sides
+      // (or the single side available), so we don't wipe out genuine sustained trends.
+      if(prev!=null&&next!=null){if(badVsPrev&&badVsNext)flagged[i]=null;}
+      else if(prev!=null){if(badVsPrev)flagged[i]=null;}
+      else if(next!=null){if(badVsNext)flagged[i]=null;}
+    }
+    // Interpolate the flagged/missing points from nearest valid neighbors
+    const out=[...flagged];
+    for(let i=0;i<out.length;i++){
+      if(out[i]===null||out[i]===undefined){
+        let prevIdx=-1,nextIdx=-1;
+        for(let j=i-1;j>=0;j--){if(out[j]!==null&&out[j]!==undefined){prevIdx=j;break;}}
+        for(let j=i+1;j<out.length;j++){if(flagged[j]!==null&&flagged[j]!==undefined){nextIdx=j;break;}}
+        if(prevIdx>=0&&nextIdx>=0){
+          const frac=(i-prevIdx)/(nextIdx-prevIdx);
+          out[i]=out[prevIdx]+(flagged[nextIdx]-out[prevIdx])*frac;
+        }else if(prevIdx>=0)out[i]=out[prevIdx];
+        else if(nextIdx>=0)out[i]=flagged[nextIdx];
+      }
+    }
+    return out;
+  }
+
   // Build quarterly series
+  // Flow items: try to de-annualize a mislabeled Q4 first (subtract Q1+Q2+Q3),
+  // then run the generic outlier-interpolation as a fallback for whatever's left.
   const n=i=>qIdx[i];
-  const rev=qLbls.map((_,i)=>qv(s.revenue,i));
-  const ni=qLbls.map((_,i)=>qv(s.netIncome,i));
-  const eps=qLbls.map((_,i)=>qv(s.eps,i));
+  const rev=sanitizeSeries(deannualizeQ4(qLbls.map((_,i)=>qv(s.revenue,i)),qLbls));
+  const ni=sanitizeSeries(deannualizeQ4(qLbls.map((_,i)=>qv(s.netIncome,i)),qLbls));
+  const eps=deannualizeQ4(qLbls.map((_,i)=>qv(s.eps,i)),qLbls);
   const shares=qLbls.map((_,i)=>qv(s.sharesOut,i));
-  const assets=qLbls.map((_,i)=>qv(s.assets,i));
-  const liab=qLbls.map((_,i)=>qv(s.liabilities,i));
-  const eq=qLbls.map((_,i)=>qv(s.equity,i));
-  const debt=qLbls.map((_,i)=>qv(s.longDebt,i));
-  const gp=qLbls.map((_,i)=>qv(s.grossProfit,i));
-  const oi=qLbls.map((_,i)=>qv(s.operatingIncome,i));
-  const ocf=qLbls.map((_,i)=>qv(s.operatingCF,i));
-  const fcfQ=qLbls.map((_,i)=>qv(s.fcf,i));
+  // Balance-sheet snapshots — never de-annualized, only outlier-corrected
+  const assets=sanitizeSeries(qLbls.map((_,i)=>qv(s.assets,i)));
+  const liab=sanitizeSeries(qLbls.map((_,i)=>qv(s.liabilities,i)));
+  const eq=sanitizeSeries(qLbls.map((_,i)=>qv(s.equity,i)));
+  const debt=sanitizeSeries(qLbls.map((_,i)=>qv(s.longDebt,i)));
+  const gp=sanitizeSeries(deannualizeQ4(qLbls.map((_,i)=>qv(s.grossProfit,i)),qLbls));
+  const oi=sanitizeSeries(deannualizeQ4(qLbls.map((_,i)=>qv(s.operatingIncome,i)),qLbls));
+  const ocf=sanitizeSeries(deannualizeQ4(qLbls.map((_,i)=>qv(s.operatingCF,i)),qLbls));
+  const fcfQ=sanitizeSeries(deannualizeQ4(qLbls.map((_,i)=>qv(s.fcf,i)),qLbls));
 
   // Calculated ratios at quarterly dates
   // Fix shares: use Yahoo meta sharesOutstanding as anchor (most reliable)
   // For historical quarters, scale relative to current known value
-  const sharesInterp=[...shares];
+  let sharesInterp=[...shares];
   // First: detect bad values using meta shares as reference
   if(sharesOutstanding&&sharesOutstanding>0){
     for(let i=0;i<sharesInterp.length;i++){
@@ -1395,6 +1487,9 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding){
       sharesInterp[i]=prev??next??sharesOutstanding;
     }
   }
+  // Second pass: catch isolated Q4-style spikes/crashes that survive the anchor check
+  // (e.g. a bad value that happens to still be within 40% of the current share count)
+  sharesInterp=sanitizeSeries(sharesInterp,2.2);
 
   // P/E uses TTM EPS (sum of last 4 quarters rolling)
   const pe=priceAtQ.map((p,i)=>{
@@ -1436,42 +1531,42 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding){
 
   // Chart 1: P/E + P/B left, Revenue right, Price hidden
   mkDual('fsCh1',qLbls,priceAtQ,[
-    {label:'P/E',data:pe,type:'line',borderColor:'#ffbb00',borderWidth:2,pointRadius:3,fill:false},
-    {label:'P/B',data:pb,type:'line',borderColor:'#ff3355',borderWidth:2,pointRadius:3,fill:false},
+    {label:'P/E',data:pe,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:3,fill:false},
+    {label:'P/B',data:pb,type:'line',borderColor:PASTEL.pink,borderWidth:2,pointRadius:3,fill:false},
   ],[
-    {label:'Revenue',data:rev,type:'bar',backgroundColor:'rgba(0,255,136,0.25)',borderRadius:2},
+    {label:'Revenue',data:rev,type:'bar',backgroundColor:PASTEL.green+'40',borderRadius:2},
   ],fmtBig,v=>v?.toFixed(1)+'x');
 
   if(!noData){
     // Chart 2: ROE+ROA left, Net Income right, Price hidden
     mkDual('fsCh2',qLbls,priceAtQ,[
-      {label:'ROE %',data:roe,type:'line',borderColor:'#ffbb00',borderWidth:2,pointRadius:3,fill:false},
-      {label:'ROA %',data:roa,type:'line',borderColor:'#ff3355',borderWidth:2,pointRadius:3,fill:false},
+      {label:'ROE %',data:roe,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:3,fill:false},
+      {label:'ROA %',data:roa,type:'line',borderColor:PASTEL.pink,borderWidth:2,pointRadius:3,fill:false},
     ],[
-      {label:'Net Income',data:ni,type:'bar',backgroundColor:ni.map(v=>v===null?'transparent':v>=0?'rgba(0,255,136,0.35)':'rgba(255,51,85,0.35)'),borderRadius:2},
+      {label:'Net Income',data:ni,type:'bar',backgroundColor:ni.map(v=>v===null?'transparent':v>=0?PASTEL.green+'59':PASTEL.pink+'59'),borderRadius:2},
     ],fmtBig,v=>v?.toFixed(1)+'%');
 
     // Chart 3: Shares left, EPS right, Price hidden
     mkDual('fsCh3',qLbls,priceAtQ,[
-      {label:'Shares Out (M)',data:shares.map(v=>v?+(v/1e6).toFixed(1):null),type:'line',borderColor:'#ffbb00',borderWidth:2,pointRadius:3,fill:false},
+      {label:'Shares Out (M)',data:sharesInterp.map(v=>v?+(v/1e6).toFixed(1):null),type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:3,fill:false},
     ],[
-      {label:'EPS',data:eps,type:'bar',backgroundColor:eps.map(v=>v===null?'transparent':v>=0?'rgba(0,255,136,0.4)':'rgba(255,51,85,0.4)'),borderRadius:2},
+      {label:'EPS',data:eps,type:'bar',backgroundColor:eps.map(v=>v===null?'transparent':v>=0?PASTEL.green+'66':PASTEL.pink+'66'),borderRadius:2},
     ],fmtBig,v=>v?.toFixed(0)+'M');
 
     // Chart 4: Debt/Equity left, Assets+Liabilities+Equity right, Price hidden
     mkDual('fsCh4',qLbls,priceAtQ,[
-      {label:'Debt/Equity',data:debtEq,type:'line',borderColor:'#ffbb00',borderWidth:2,pointRadius:3,fill:false},
+      {label:'Debt/Equity',data:debtEq,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:3,fill:false},
     ],[
-      {label:'Assets',data:assets,type:'bar',backgroundColor:'rgba(51,187,255,0.3)',borderRadius:2},
-      {label:'Liabilities',data:liab,type:'bar',backgroundColor:'rgba(255,51,85,0.3)',borderRadius:2},
-      {label:'Equity',data:eq,type:'bar',backgroundColor:'rgba(0,255,136,0.3)',borderRadius:2},
+      {label:'Assets',data:assets,type:'bar',backgroundColor:PASTEL.blue+'4d',borderRadius:2},
+      {label:'Liabilities',data:liab,type:'bar',backgroundColor:PASTEL.pink+'4d',borderRadius:2},
+      {label:'Equity',data:eq,type:'bar',backgroundColor:PASTEL.green+'4d',borderRadius:2},
     ],fmtBig,v=>v?.toFixed(2)+'x');
 
     // Chart 5: Margins left, Price hidden
     mkDual('fsCh5',qLbls,priceAtQ,[
-      {label:'Gross Margin %',data:gm,type:'line',borderColor:'#00ff88',borderWidth:2,pointRadius:3,fill:false},
-      {label:'Op. Margin %',data:om,type:'line',borderColor:'#ffbb00',borderWidth:2,pointRadius:3,borderDash:[4,3],fill:false},
-      {label:'Net Margin %',data:nm,type:'line',borderColor:'#ff3355',borderWidth:2,pointRadius:3,borderDash:[4,3],fill:false},
+      {label:'Gross Margin %',data:gm,type:'line',borderColor:PASTEL.green,borderWidth:2,pointRadius:3,fill:false},
+      {label:'Op. Margin %',data:om,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:3,borderDash:[4,3],fill:false},
+      {label:'Net Margin %',data:nm,type:'line',borderColor:PASTEL.pink,borderWidth:2,pointRadius:3,borderDash:[4,3],fill:false},
     ],[],null,v=>v?.toFixed(1)+'%');
 
     // Chart 6: Net Cash Flow bars right, FCF per Share line left, Price hidden
@@ -1480,9 +1575,9 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding){
       return(v!==null&&sh&&sh>0)?+(v/sh).toFixed(2):null;
     });
     mkDual('fsCh6',qLbls,priceAtQ,[
-      {label:'FCF/Share',data:fcfPerShare,type:'line',borderColor:'#00ff88',borderWidth:2,pointRadius:3,fill:false},
+      {label:'FCF/Share',data:fcfPerShare,type:'line',borderColor:PASTEL.green,borderWidth:2,pointRadius:3,fill:false},
     ],[
-      {label:'Net Cash Flow',data:ocf,type:'bar',backgroundColor:ocf.map(v=>v===null?'transparent':v>=0?'rgba(51,187,255,0.35)':'rgba(255,51,85,0.35)'),borderRadius:2},
+      {label:'Net Cash Flow',data:ocf,type:'bar',backgroundColor:ocf.map(v=>v===null?'transparent':v>=0?PASTEL.blue+'59':PASTEL.pink+'59'),borderRadius:2},
     ],fmtBig,v=>'$'+v?.toFixed(2));
   }
 } // cached S&P500 return over last 20 weeks
@@ -2850,11 +2945,10 @@ function renderBalance(){
   const lCtx=document.getElementById('balLineChart')?.getContext('2d');
   if(lCtx){
     const vals=D.map(r=>r.saldo_usd);
-    const grad=lCtx.createLinearGradient(0,0,0,200);
-    grad.addColorStop(0,'rgba(0,255,136,0.2)');grad.addColorStop(1,'rgba(0,255,136,0)');
+    const grad=pastelAreaFill(lCtx,PASTEL.green,200);
     balCharts.line=new Chart(lCtx,{
       type:'line',
-      data:{labels,datasets:[{data:vals,borderColor:'#00ff88',borderWidth:2,pointRadius:0,fill:true,backgroundColor:grad,tension:0.3}]},
+      data:{labels,datasets:[{data:vals,borderColor:PASTEL.green,borderWidth:2.5,pointRadius:0,fill:true,backgroundColor:grad,tension:0.3}]},
       options:{responsive:true,maintainAspectRatio:false,
         plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>'$'+v.raw.toLocaleString()}}},
         scales:{
@@ -2875,7 +2969,7 @@ function renderBalance(){
         labels:barData.map(r=>r.d),
         datasets:[{
           data:barData.map(r=>r.var_usd),
-          backgroundColor:barData.map(r=>r.var_usd>=0?'rgba(0,255,136,0.7)':'rgba(255,51,85,0.7)'),
+          backgroundColor:barData.map(r=>r.var_usd>=0?PASTEL.green+'b3':PASTEL.pink+'b3'),
           borderWidth:0,borderRadius:2
         }]
       },
@@ -2962,20 +3056,20 @@ function renderBalStack(){
   let datasets;
   if(isUSD){
     datasets=[
-      {label:'IOL+Cocos ARS→USD',data:D.map(r=>Math.round(r.iol_ars/r.tcmep)),backgroundColor:'rgba(0,255,136,0.8)'},
-      {label:'IOL USD',data:D.map(r=>r.iol_usd),backgroundColor:'rgba(0,200,100,0.8)'},
-      {label:'Cripto',data:D.map(r=>r.cripto),backgroundColor:'rgba(255,187,0,0.8)'},
-      {label:'Real State',data:D.map(r=>r.realestate),backgroundColor:'rgba(51,187,255,0.8)'},
-      {label:'Efectivo USD',data:D.map(r=>r.efec_usd),backgroundColor:'rgba(170,136,255,0.8)'},
-      {label:'Otros ARS→USD',data:D.map(r=>Math.round((r.mpago+r.pfijo+r.efec_ars+r.bancos)/r.tcmep)),backgroundColor:'rgba(100,100,100,0.6)'},
+      {label:'IOL+Cocos ARS→USD',data:D.map(r=>Math.round(r.iol_ars/r.tcmep)),backgroundColor:PASTEL.green+'cc'},
+      {label:'IOL USD',data:D.map(r=>r.iol_usd),backgroundColor:PASTEL.blue+'cc'},
+      {label:'Cripto',data:D.map(r=>r.cripto),backgroundColor:PASTEL.yellow+'cc'},
+      {label:'Real State',data:D.map(r=>r.realestate),backgroundColor:PASTEL.purple+'cc'},
+      {label:'Efectivo USD',data:D.map(r=>r.efec_usd),backgroundColor:PASTEL.orange+'cc'},
+      {label:'Otros ARS→USD',data:D.map(r=>Math.round((r.mpago+r.pfijo+r.efec_ars+r.bancos)/r.tcmep)),backgroundColor:PASTEL.pink+'cc'},
     ];
   }else{
     datasets=[
-      {label:'IOL+Cocos',data:D.map(r=>r.iol_ars/1e6),backgroundColor:'rgba(0,255,136,0.8)'},
-      {label:'MPago/Uala',data:D.map(r=>r.mpago/1e6),backgroundColor:'rgba(255,187,0,0.8)'},
-      {label:'P.Fijo',data:D.map(r=>r.pfijo/1e6),backgroundColor:'rgba(51,187,255,0.8)'},
-      {label:'Efectivo',data:D.map(r=>r.efec_ars/1e6),backgroundColor:'rgba(170,136,255,0.8)'},
-      {label:'Bancos/FCI',data:D.map(r=>r.bancos/1e6),backgroundColor:'rgba(255,85,51,0.7)'},
+      {label:'IOL+Cocos',data:D.map(r=>r.iol_ars/1e6),backgroundColor:PASTEL.green+'cc'},
+      {label:'MPago/Uala',data:D.map(r=>r.mpago/1e6),backgroundColor:PASTEL.yellow+'cc'},
+      {label:'P.Fijo',data:D.map(r=>r.pfijo/1e6),backgroundColor:PASTEL.blue+'cc'},
+      {label:'Efectivo',data:D.map(r=>r.efec_ars/1e6),backgroundColor:PASTEL.purple+'cc'},
+      {label:'Bancos/FCI',data:D.map(r=>r.bancos/1e6),backgroundColor:PASTEL.pink+'cc'},
     ];
   }
 
@@ -3059,6 +3153,54 @@ function buildAllCashflows(){
     else if(e.type==='dividendo')cfs.push({date:e.date,amount:e.amtUSD||0});
   }
   return cfs;
+}
+
+// ── PRÓXIMA EARNINGS CALL ──
+function saveEarningsCache(){localStorage.setItem('pf_earnings_cache',JSON.stringify(earningsCache));}
+
+async function fetchEarningsDate(ticker){
+  try{
+    const url=`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=calendarEvents`;
+    const data=await proxyFetch(url);
+    const r=data.quoteSummary?.result?.[0];
+    const arr=r?.calendarEvents?.earnings?.earningsDate;
+    const raw=arr?.[0]?.raw;
+    if(!raw)return null;
+    return new Date(raw*1000).toISOString().slice(0,10);
+  }catch(e){return null;}
+}
+
+function formatEarningsCell(dateStr){
+  if(!dateStr)return'<span style="color:var(--text3);">—</span>';
+  const d=new Date(dateStr+'T00:00:00');
+  const today=new Date();today.setHours(0,0,0,0);
+  const diffDays=Math.round((d-today)/86400000);
+  const label=d.toLocaleDateString('es-AR',{day:'2-digit',month:'short'});
+  let color='var(--text2)';
+  if(diffDays<0)color='var(--text3)';
+  else if(diffDays<=7)color='var(--red)';
+  else if(diffDays<=21)color='var(--amber)';
+  const suffix=diffDays<0?' (pasada)':diffDays===0?' (hoy)':diffDays===1?' (mañana)':` (en ${diffDays}d)`;
+  return`<span style="color:${color};">${label}${suffix}</span>`;
+}
+
+// Fetches (and caches for 12h) upcoming earnings dates for the given tickers,
+// then patches the corresponding table cells in place — no full re-render needed.
+async function ensureEarningsDates(tickerList){
+  const uniq=[...new Set(tickerList)];
+  const staleMs=12*3600*1000;
+  const need=uniq.filter(t=>{
+    const c=earningsCache[t];
+    return!c||(Date.now()-c.fetchedAt)>staleMs;
+  });
+  if(!need.length)return;
+  await withLimit(need.map(ticker=>async()=>{
+    const date=await fetchEarningsDate(ticker);
+    earningsCache[ticker]={date,fetchedAt:Date.now()};
+    const cell=document.querySelector(`td[data-earn="${CSS.escape(ticker)}"]`);
+    if(cell)cell.innerHTML=formatEarningsCell(date);
+  }),3);
+  saveEarningsCache();
 }
 
 // ── PORTFOLIO MODAL ──
@@ -3684,7 +3826,7 @@ async function renderPortfolio(){
   const tbody=document.getElementById('pfTbody');
   const summary=document.getElementById('pfSummary');
   if(!pfPositions.length){
-    tbody.innerHTML='<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr>';
+    tbody.innerHTML='<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr>';
     summary.innerHTML='';
     document.getElementById('pfChartsWrap').style.display='none';
     return;
@@ -3795,6 +3937,7 @@ async function renderPortfolio(){
     <td style="font-weight:500;color:${g.plDol===null?'var(--text2)':g.plDol>=0?'var(--green)':'var(--red)'};">${g.plDol!==null?fD(g.plDol):'—'}</td>
     <td style="font-weight:500;color:${g.plPct===null?'var(--text2)':g.plPct>=0?'var(--green)':'var(--red)'};">${g.plPct!==null?(g.plPct>=0?'+':'')+g.plPct.toFixed(2)+'%':'—'}</td>
     <td style="font-weight:500;color:${g.tir==null?'var(--text2)':g.tir>=0?'var(--green)':'var(--red)'};" title="TIR anualizada (XIRR)">${g.tir!=null?(g.tir*100>=0?'+':'')+(g.tir*100).toFixed(2)+'%':'—'}</td>
+    <td data-earn="${g.ticker}">${formatEarningsCell(earningsCache[g.ticker]?.date)}</td>
     <td onclick="event.stopPropagation()"><button class="btn" onclick="deletePfTicker('${g.ticker}')" style="padding:3px 8px;font-size:10px;color:var(--red);border-color:var(--red);">✕</button></td>
   </tr>`).join('');
 
@@ -3802,6 +3945,7 @@ async function renderPortfolio(){
   document.getElementById('pfChartsWrap').style.display='grid';
   renderPfCharts(groupedRows,rows);
   updateRealizedCard();
+  ensureEarningsDates(groupedRows.map(g=>g.ticker));
 }
 
 let pfPeriod='1M';
@@ -3841,7 +3985,7 @@ function renderLineChart(){
   const firstVal=vals[0];
   const lastVal=vals[vals.length-1];
   const isUp=lastVal>=firstVal;
-  const lineColor=isUp?'#00ff88':'#ff3355';
+  const lineColor=isUp?PASTEL.green:PASTEL.pink;
 
   if(pfCharts.line)pfCharts.line.destroy();
   const ctx=document.getElementById('pfLineChart')?.getContext('2d');
@@ -3849,8 +3993,8 @@ function renderLineChart(){
   pfCharts.line=new Chart(ctx,{
     type:'line',
     data:{labels:lbls,datasets:[{
-      data:vals,borderColor:lineColor,borderWidth:2,pointRadius:0,fill:true,
-      backgroundColor:(c)=>{const g=c.chart.ctx.createLinearGradient(0,0,0,220);g.addColorStop(0,lineColor+'33');g.addColorStop(1,lineColor+'00');return g;},
+      data:vals,borderColor:lineColor,borderWidth:2.5,pointRadius:0,fill:true,
+      backgroundColor:(c)=>pastelAreaFill(c.chart.ctx,lineColor,220),
       tension:0.3,
     }]},
     options:{
@@ -3942,7 +4086,7 @@ function renderPfCharts(rows,allPositions){
   if(pfCharts.pie){pfCharts.pie.destroy();pfCharts.pie=null;}
   setTimeout(()=>{
     const pieCtx=document.getElementById('pfPieChart')?.getContext('2d');
-    const colors=['#00ff88','#33bbff','#ffbb00','#ff3355','#aa88ff','#ff8833','#55ddcc','#ff55aa','#aaccff','#ccff55'];
+    const colors=PASTEL_CYCLE;
     if(pieCtx){
       pfCharts.pie=new Chart(pieCtx,{
         type:'doughnut',
@@ -3976,6 +4120,3 @@ async function refreshPortfolio(){
 </script>
 </body>
 </html>
-
-
-    
