@@ -1413,15 +1413,51 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
       // GRÁFICOS HISTÓRICOS — 5 AÑOS ${noData?'<span style="color:var(--red);font-weight:400;">(datos fundamentales no disponibles)</span>':''}
     </div>
     <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:24px;">
-      <div class="chart-box"><div class="chart-box-title">Precio · Revenue · P/E</div><div id="fsCh1PeCard" style="position:absolute;top:14px;right:14px;background:var(--bg4);border:1px solid var(--border2);border-radius:3px;padding:6px 10px;font-size:11px;line-height:1.6;z-index:2;"></div><div style="height:220px;"><canvas id="fsCh1"></canvas></div></div>
-      ${noData?'':`
-      <div class="chart-box"><div class="chart-box-title">Precio · Net Income · ROE · ROA</div><div id="fsCh2AvgCard" style="position:absolute;top:14px;right:14px;background:var(--bg4);border:1px solid var(--border2);border-radius:3px;padding:6px 10px;font-size:11px;line-height:1.6;z-index:2;"></div><div style="height:220px;"><canvas id="fsCh2"></canvas></div></div>
-      <div style="display:flex;gap:16px;align-items:stretch;">
-        <div class="chart-box" style="flex:1 1 60%;min-width:0;"><div class="chart-box-title">Precio · EPS · Shares Out</div><div id="fsCh3AvgCard" style="position:absolute;top:14px;right:14px;background:var(--bg4);border:1px solid var(--border2);border-radius:3px;padding:6px 10px;font-size:11px;line-height:1.6;z-index:2;"></div><div style="height:220px;"><canvas id="fsCh3"></canvas></div></div>
-        <div class="chart-box" style="flex:1 1 40%;min-width:0;"><div class="chart-box-title">CAGR Shares 1Y · 3Y</div><div id="fsCh3bAvgCard" style="position:absolute;top:14px;right:14px;background:var(--bg4);border:1px solid var(--border2);border-radius:3px;padding:6px 10px;font-size:11px;line-height:1.6;z-index:2;"></div><div style="height:220px;"><canvas id="fsCh3b"></canvas></div></div>
+      <div class="chart-box">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px 16px;">
+          <div class="chart-box-title" style="margin:0;">Precio · Revenue · P/E</div>
+          <div id="fsCh1PeCard" style="font-size:11px;color:var(--text3);display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;"></div>
+        </div>
+        <div style="height:220px;"><canvas id="fsCh1"></canvas></div>
       </div>
-      <div class="chart-box"><div class="chart-box-title">Precio · Gross Margin · Operating Margin · Net Margin</div><div id="fsCh5AvgCard" style="position:absolute;top:14px;right:14px;background:var(--bg4);border:1px solid var(--border2);border-radius:3px;padding:6px 10px;font-size:11px;line-height:1.6;z-index:2;"></div><div style="height:220px;"><canvas id="fsCh5"></canvas></div></div>
-      <div class="chart-box"><div class="chart-box-title">Precio · Net Cash Flow · FCF per Share · FCF Yield</div><div id="fsCh6AvgCard" style="position:absolute;top:14px;right:14px;background:var(--bg4);border:1px solid var(--border2);border-radius:3px;padding:6px 10px;font-size:11px;line-height:1.6;z-index:2;"></div><div style="height:220px;"><canvas id="fsCh6"></canvas></div></div>
+      ${noData?'':`
+      <div class="chart-box">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px 16px;">
+          <div class="chart-box-title" style="margin:0;">Precio · Net Income · ROE · ROA</div>
+          <div id="fsCh2AvgCard" style="font-size:11px;color:var(--text3);display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;"></div>
+        </div>
+        <div style="height:220px;"><canvas id="fsCh2"></canvas></div>
+      </div>
+      <div style="display:flex;gap:16px;align-items:stretch;">
+        <div class="chart-box" style="flex:1 1 60%;min-width:0;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px 16px;">
+            <div class="chart-box-title" style="margin:0;">Precio · EPS · Shares Out</div>
+            <div id="fsCh3AvgCard" style="font-size:11px;color:var(--text3);display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;"></div>
+          </div>
+          <div style="height:220px;"><canvas id="fsCh3"></canvas></div>
+        </div>
+        <div class="chart-box" style="flex:1 1 40%;min-width:0;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px 16px;">
+            <div class="chart-box-title" style="margin:0;">CAGR Shares 1Y · 3Y</div>
+            <div id="fsCh3bAvgCard" style="font-size:11px;color:var(--text3);display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;"></div>
+          </div>
+          <div style="height:220px;"><canvas id="fsCh3b"></canvas></div>
+        </div>
+      </div>
+      <div class="chart-box">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px 16px;">
+          <div class="chart-box-title" style="margin:0;">Precio · Gross Margin · Operating Margin · Net Margin</div>
+          <div id="fsCh5AvgCard" style="font-size:11px;color:var(--text3);display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;"></div>
+        </div>
+        <div style="height:220px;"><canvas id="fsCh5"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px 16px;">
+          <div class="chart-box-title" style="margin:0;">Precio · Net Cash Flow · FCF per Share · FCF Yield</div>
+          <div id="fsCh6AvgCard" style="font-size:11px;color:var(--text3);display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;"></div>
+        </div>
+        <div style="height:220px;"><canvas id="fsCh6"></canvas></div>
+      </div>
       `}
     </div>`;
 
@@ -1438,10 +1474,10 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
   if(peCard){
     const peAvg=avg5y(pe),revAvg=avg5y(rev);
     peCard.innerHTML=`
-      <div><span style="color:var(--text3);">P/E Fwd</span> <span style="color:${PASTEL.blue};font-weight:700;">${peForward!=null?peForward.toFixed(1)+'x':'—'}</span></div>
-      <div><span style="color:var(--text3);">PEG</span> <span style="color:${PASTEL.pink};font-weight:700;">${peg!=null?peg.toFixed(2):'—'}</span></div>
-      <div style="border-top:1px solid var(--border2);margin-top:4px;padding-top:4px;"><span style="color:var(--text3);">P/E prom. 5Y</span> <span style="color:${PASTEL.yellow};font-weight:700;">${peAvg!=null?peAvg.toFixed(1)+'x':'—'}</span></div>
-      <div><span style="color:var(--text3);">Revenue prom. 5Y</span> <span style="color:${PASTEL.green};font-weight:700;">${revAvg!=null?fmtBig(revAvg):'—'}</span></div>`;
+      <span>P/E Fwd <b style="color:${PASTEL.blue};">${peForward!=null?peForward.toFixed(1)+'x':'—'}</b></span>
+      <span>PEG <b style="color:${PASTEL.pink};">${peg!=null?peg.toFixed(2):'—'}</b></span>
+      <span>P/E prom. 5Y <b style="color:${PASTEL.yellow};">${peAvg!=null?peAvg.toFixed(1)+'x':'—'}</b></span>
+      <span>Revenue prom. 5Y <b style="color:${PASTEL.green};">${revAvg!=null?fmtBig(revAvg):'—'}</b></span>`;
   }
 
   if(!noData){
@@ -1456,9 +1492,9 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
       const roeAvg=avg5y(roe),roaAvg=avg5y(roa),niAvg=avg5y(ni);
       const card=document.getElementById('fsCh2AvgCard');
       if(card)card.innerHTML=`
-        <div><span style="color:var(--text3);">ROE prom. 5Y</span> <span style="color:${PASTEL.yellow};font-weight:700;">${roeAvg!=null?roeAvg.toFixed(1)+'%':'—'}</span></div>
-        <div><span style="color:var(--text3);">ROA prom. 5Y</span> <span style="color:${PASTEL.pink};font-weight:700;">${roaAvg!=null?roaAvg.toFixed(1)+'%':'—'}</span></div>
-        <div><span style="color:var(--text3);">Net Inc. prom. 5Y</span> <span style="color:${PASTEL.green};font-weight:700;">${niAvg!=null?fmtBig(niAvg):'—'}</span></div>`;
+        <span>ROE prom. 5Y <b style="color:${PASTEL.yellow};">${roeAvg!=null?roeAvg.toFixed(1)+'%':'—'}</b></span>
+        <span>ROA prom. 5Y <b style="color:${PASTEL.pink};">${roaAvg!=null?roaAvg.toFixed(1)+'%':'—'}</b></span>
+        <span>Net Inc. prom. 5Y <b style="color:${PASTEL.green};">${niAvg!=null?fmtBig(niAvg):'—'}</b></span>`;
     }
     // Chart 3: EPS bars, Shares Out — Shares Out has its own hidden scale since
     // the exact count doesn't matter, just the shape of the trend.
@@ -1471,7 +1507,7 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
     {
       const epsAvg=avg5y(eps);
       const card=document.getElementById('fsCh3AvgCard');
-      if(card)card.innerHTML=`<div><span style="color:var(--text3);">EPS prom. 5Y</span> <span style="color:${PASTEL.green};font-weight:700;">${epsAvg!=null?'$'+epsAvg.toFixed(2):'—'}</span></div>`;
+      if(card)card.innerHTML=`<span>EPS prom. 5Y <b style="color:${PASTEL.green};">${epsAvg!=null?'$'+epsAvg.toFixed(2):'—'}</b></span>`;
     }
 
     // Chart 3b: CAGR of shares outstanding, 1-year and 3-year trailing, computed
@@ -1510,8 +1546,8 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
       const cagr1yAvg=avg5y(cagr1y),cagr3yAvg=avg5y(cagr3y);
       const card=document.getElementById('fsCh3bAvgCard');
       if(card)card.innerHTML=`
-        <div><span style="color:var(--text3);">CAGR 1Y prom. 5Y</span> <span style="color:${PASTEL.blue};font-weight:700;">${cagr1yAvg!=null?cagr1yAvg.toFixed(1)+'%':'—'}</span></div>
-        <div><span style="color:var(--text3);">CAGR 3Y prom. 5Y</span> <span style="color:${PASTEL.green};font-weight:700;">${cagr3yAvg!=null?cagr3yAvg.toFixed(1)+'%':'—'}</span></div>`;
+        <span>CAGR 1Y prom. 5Y <b style="color:${PASTEL.blue};">${cagr1yAvg!=null?cagr1yAvg.toFixed(1)+'%':'—'}</b></span>
+        <span>CAGR 3Y prom. 5Y <b style="color:${PASTEL.green};">${cagr3yAvg!=null?cagr3yAvg.toFixed(1)+'%':'—'}</b></span>`;
     }
 
     // Chart 5: Margins left, Price hidden
@@ -1524,9 +1560,9 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
       const gmAvg=avg5y(gm),omAvg=avg5y(om),nmAvg=avg5y(nm);
       const card=document.getElementById('fsCh5AvgCard');
       if(card)card.innerHTML=`
-        <div><span style="color:var(--text3);">Gross prom. 5Y</span> <span style="color:${PASTEL.green};font-weight:700;">${gmAvg!=null?gmAvg.toFixed(1)+'%':'—'}</span></div>
-        <div><span style="color:var(--text3);">Op. prom. 5Y</span> <span style="color:${PASTEL.yellow};font-weight:700;">${omAvg!=null?omAvg.toFixed(1)+'%':'—'}</span></div>
-        <div><span style="color:var(--text3);">Net prom. 5Y</span> <span style="color:${PASTEL.pink};font-weight:700;">${nmAvg!=null?nmAvg.toFixed(1)+'%':'—'}</span></div>`;
+        <span>Gross prom. 5Y <b style="color:${PASTEL.green};">${gmAvg!=null?gmAvg.toFixed(1)+'%':'—'}</b></span>
+        <span>Op. prom. 5Y <b style="color:${PASTEL.yellow};">${omAvg!=null?omAvg.toFixed(1)+'%':'—'}</b></span>
+        <span>Net prom. 5Y <b style="color:${PASTEL.pink};">${nmAvg!=null?nmAvg.toFixed(1)+'%':'—'}</b></span>`;
     }
 
     // Chart 6: Net Cash Flow bars right, FCF per Share + FCF Yield (TTM) left,
@@ -1556,9 +1592,9 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
       const fcfShareAvg=avg5y(fcfPerShare),fcfYieldAvg=avg5y(fcfYieldHist),ocfAvg=avg5y(ocf);
       const card=document.getElementById('fsCh6AvgCard');
       if(card)card.innerHTML=`
-        <div><span style="color:var(--text3);">FCF/Share prom. 5Y</span> <span style="color:${PASTEL.green};font-weight:700;">${fcfShareAvg!=null?'$'+fcfShareAvg.toFixed(2):'—'}</span></div>
-        <div><span style="color:var(--text3);">FCF Yield prom. 5Y</span> <span style="color:${PASTEL.blue};font-weight:700;">${fcfYieldAvg!=null?fcfYieldAvg.toFixed(1)+'%':'—'}</span></div>
-        <div><span style="color:var(--text3);">Net CF prom. 5Y</span> <span style="color:${PASTEL.pink};font-weight:700;">${ocfAvg!=null?fmtBig(ocfAvg):'—'}</span></div>`;
+        <span>FCF/Share prom. 5Y <b style="color:${PASTEL.green};">${fcfShareAvg!=null?'$'+fcfShareAvg.toFixed(2):'—'}</b></span>
+        <span>FCF Yield prom. 5Y <b style="color:${PASTEL.blue};">${fcfYieldAvg!=null?fcfYieldAvg.toFixed(1)+'%':'—'}</b></span>
+        <span>Net CF prom. 5Y <b style="color:${PASTEL.pink};">${ocfAvg!=null?fmtBig(ocfAvg):'—'}</b></span>`;
     }
   }
 } // cached S&P500 return over last 20 weeks
