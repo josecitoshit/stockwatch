@@ -893,9 +893,9 @@ async function finvizFetch(ticker){
   return typeof j==='string'?j:JSON.stringify(j);
 }
 function fvNum(html,label){
-  const re=new RegExp('<td[^>]*>'+label+'<\\/td>\\s*<td[^>]*>\\s*(?:<b>)?([^<]+?)(?:<\\/b>)?\\s*<\\/td>','i');
+  const re=new RegExp('<td[^>]*>[\\s\\S]*?'+label+'[\\s\\S]*?<\\/td>\\s*<td[^>]*>([\\s\\S]*?)<\\/td>','i');
   const m=html.match(re);if(!m)return null;
-  const v=m[1].trim().replace(/[,%]/g,'');
+  const v=m[1].replace(/<[^>]+>/g,'').trim().replace(/[,%]/g,'');
   if(v==='-'||v===''||v==='N/A')return null;
   return parseFloat(v);
 }
@@ -1411,7 +1411,6 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
       ${noData?'':`
       <div class="chart-box"><div class="chart-box-title">Precio · Net Income · ROE · ROA</div><div style="height:220px;"><canvas id="fsCh2"></canvas></div></div>
       <div class="chart-box"><div class="chart-box-title">Precio · EPS · Shares Outstanding</div><div style="height:220px;"><canvas id="fsCh3"></canvas></div></div>
-      <div class="chart-box"><div class="chart-box-title">Precio · Assets · Liabilities · Equity · Debt/Equity</div><div style="height:220px;"><canvas id="fsCh4"></canvas></div></div>
       <div class="chart-box"><div class="chart-box-title">Precio · Gross Margin · Operating Margin · Net Margin</div><div style="height:220px;"><canvas id="fsCh5"></canvas></div></div>
       <div class="chart-box"><div class="chart-box-title">Precio · Net Cash Flow · FCF per Share</div><div style="height:220px;"><canvas id="fsCh6"></canvas></div></div>
       `}
@@ -1448,15 +1447,6 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
     ],[
       {label:'EPS',data:eps,type:'bar',backgroundColor:eps.map(v=>v===null?'transparent':v>=0?PASTEL.green+'66':PASTEL.pink+'66'),borderRadius:2},
     ],fmtBig,v=>v?.toFixed(0)+'M');
-
-    // Chart 4: Debt/Equity left, Assets+Liabilities+Equity right, Price hidden
-    mkDual('fsCh4',qLbls,priceAtQ,[
-      {label:'Debt/Equity',data:debtEq,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:0,tension:0.35,fill:false},
-    ],[
-      {label:'Assets',data:assets,type:'bar',backgroundColor:PASTEL.blue+'4d',borderRadius:2},
-      {label:'Liabilities',data:liab,type:'bar',backgroundColor:PASTEL.pink+'4d',borderRadius:2},
-      {label:'Equity',data:eq,type:'bar',backgroundColor:PASTEL.green+'4d',borderRadius:2},
-    ],fmtBig,v=>v?.toFixed(2)+'x');
 
     // Chart 5: Margins left, Price hidden
     mkDual('fsCh5',qLbls,priceAtQ,[
