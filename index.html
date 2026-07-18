@@ -1410,7 +1410,7 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
       <div class="chart-box"><div class="chart-box-title">Precio · Revenue · P/E</div><div id="fsCh1PeCard" style="position:absolute;top:14px;right:14px;background:var(--bg4);border:1px solid var(--border2);border-radius:3px;padding:6px 10px;font-size:11px;line-height:1.6;z-index:2;"></div><div style="height:220px;"><canvas id="fsCh1"></canvas></div></div>
       ${noData?'':`
       <div class="chart-box"><div class="chart-box-title">Precio · Net Income · ROE · ROA</div><div style="height:220px;"><canvas id="fsCh2"></canvas></div></div>
-      <div class="chart-box"><div class="chart-box-title">Precio · EPS · Shares Outstanding</div><div style="height:220px;"><canvas id="fsCh3"></canvas></div></div>
+      <div class="chart-box"><div class="chart-box-title">Precio · EPS · Var % Shares Out</div><div style="height:220px;"><canvas id="fsCh3"></canvas></div></div>
       <div class="chart-box"><div class="chart-box-title">Precio · Gross Margin · Operating Margin · Net Margin</div><div style="height:220px;"><canvas id="fsCh5"></canvas></div></div>
       <div class="chart-box"><div class="chart-box-title">Precio · Net Cash Flow · FCF per Share</div><div style="height:220px;"><canvas id="fsCh6"></canvas></div></div>
       `}
@@ -1441,12 +1441,20 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
       {label:'Net Income',data:ni,type:'bar',backgroundColor:ni.map(v=>v===null?'transparent':v>=0?PASTEL.green+'59':PASTEL.pink+'59'),borderRadius:2},
     ],fmtBig,v=>v?.toFixed(1)+'%');
 
-    // Chart 3: Shares left, EPS right, Price hidden
+    // Chart 3: EPS bars, Shares Out (hidden-scale line) + its YoY % change on the
+    // visible left axis — the raw share count doesn't matter as much as whether
+    // it's shrinking (buybacks) or growing (dilution), so that's what gets the axis.
+    const sharesM=sharesInterp.map(v=>v?+(v/1e6).toFixed(1):null);
+    const buybackYoy=sharesM.map((v,i)=>{
+      if(i<4||v==null||sharesM[i-4]==null||sharesM[i-4]===0)return null;
+      return+(((v/sharesM[i-4])-1)*100).toFixed(1);
+    });
     mkDual('fsCh3',qLbls,priceAtQ,[
-      {label:'Shares Out (M)',data:sharesInterp.map(v=>v?+(v/1e6).toFixed(1):null),type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:0,tension:0.35,fill:false},
+      {label:'Var % Shares (YoY)',data:buybackYoy,type:'line',borderColor:PASTEL.blue,borderWidth:2,pointRadius:0,tension:0.2,fill:false},
+      {label:'Shares Out (M)',data:sharesM,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:0,tension:0.35,fill:false,yAxisID:'yRef'},
     ],[
       {label:'EPS',data:eps,type:'bar',backgroundColor:eps.map(v=>v===null?'transparent':v>=0?PASTEL.green+'66':PASTEL.pink+'66'),borderRadius:2},
-    ],fmtBig,v=>v?.toFixed(0)+'M');
+    ],fmtBig,v=>v!=null?v.toFixed(1)+'%':'');
 
     // Chart 5: Margins left, Price hidden
     mkDual('fsCh5',qLbls,priceAtQ,[
