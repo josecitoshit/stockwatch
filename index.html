@@ -1410,7 +1410,10 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
       <div class="chart-box"><div class="chart-box-title">Precio · Revenue · P/E</div><div id="fsCh1PeCard" style="position:absolute;top:14px;right:14px;background:var(--bg4);border:1px solid var(--border2);border-radius:3px;padding:6px 10px;font-size:11px;line-height:1.6;z-index:2;"></div><div style="height:220px;"><canvas id="fsCh1"></canvas></div></div>
       ${noData?'':`
       <div class="chart-box"><div class="chart-box-title">Precio · Net Income · ROE · ROA</div><div style="height:220px;"><canvas id="fsCh2"></canvas></div></div>
-      <div class="chart-box"><div class="chart-box-title">Precio · EPS · Var % Shares Out</div><div style="height:220px;"><canvas id="fsCh3"></canvas></div></div>
+      <div style="display:flex;gap:16px;align-items:stretch;">
+        <div class="chart-box" style="flex:1 1 60%;min-width:0;"><div class="chart-box-title">Precio · EPS · Shares Out</div><div style="height:220px;"><canvas id="fsCh3"></canvas></div></div>
+        <div class="chart-box" style="flex:1 1 40%;min-width:0;"><div class="chart-box-title">CAGR Shares 1Y · 3Y</div><div style="height:220px;"><canvas id="fsCh3b"></canvas></div></div>
+      </div>
       <div class="chart-box"><div class="chart-box-title">Precio · Gross Margin · Operating Margin · Net Margin</div><div style="height:220px;"><canvas id="fsCh5"></canvas></div></div>
       <div class="chart-box"><div class="chart-box-title">Precio · Net Cash Flow · FCF per Share</div><div style="height:220px;"><canvas id="fsCh6"></canvas></div></div>
       `}
@@ -1441,20 +1444,47 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
       {label:'Net Income',data:ni,type:'bar',backgroundColor:ni.map(v=>v===null?'transparent':v>=0?PASTEL.green+'59':PASTEL.pink+'59'),borderRadius:2},
     ],fmtBig,v=>v?.toFixed(1)+'%');
 
-    // Chart 3: EPS bars, Shares Out (hidden-scale line) + its YoY % change on the
-    // visible left axis — the raw share count doesn't matter as much as whether
-    // it's shrinking (buybacks) or growing (dilution), so that's what gets the axis.
+    // Chart 3: EPS bars, Shares Out — Shares Out has its own hidden scale since
+    // the exact count doesn't matter, just the shape of the trend.
     const sharesM=sharesInterp.map(v=>v?+(v/1e6).toFixed(1):null);
-    const buybackYoy=sharesM.map((v,i)=>{
-      if(i<4||v==null||sharesM[i-4]==null||sharesM[i-4]===0)return null;
-      return+(((v/sharesM[i-4])-1)*100).toFixed(1);
-    });
     mkDual('fsCh3',qLbls,priceAtQ,[
-      {label:'Var % Shares (YoY)',data:buybackYoy,type:'line',borderColor:PASTEL.blue,borderWidth:2,pointRadius:0,tension:0.2,fill:false},
       {label:'Shares Out (M)',data:sharesM,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:0,tension:0.35,fill:false,yAxisID:'yRef'},
     ],[
       {label:'EPS',data:eps,type:'bar',backgroundColor:eps.map(v=>v===null?'transparent':v>=0?PASTEL.green+'66':PASTEL.pink+'66'),borderRadius:2},
     ],fmtBig,v=>v!=null?v.toFixed(1)+'%':'');
+
+    // Chart 3b: CAGR of shares outstanding, 1-year and 3-year trailing, computed
+    // at each quarter — smooths the noisy quarter-to-quarter buyback/dilution
+    // swings into readable long-term trend lines. Left as null until there's
+    // enough history behind that point (4 quarters for 1Y, 12 for 3Y).
+    const cagr1y=sharesM.map((v,i)=>{
+      if(i<4||v==null||sharesM[i-4]==null||sharesM[i-4]<=0||v<=0)return null;
+      return+(((v/sharesM[i-4])-1)*100).toFixed(2);
+    });
+    const cagr3y=sharesM.map((v,i)=>{
+      if(i<12||v==null||sharesM[i-12]==null||sharesM[i-12]<=0||v<=0)return null;
+      return+(((Math.pow(v/sharesM[i-12],1/3)-1))*100).toFixed(2);
+    });
+    const ctx3b=document.getElementById('fsCh3b')?.getContext('2d');
+    if(ctx3b){
+      if(fsCharts['fsCh3b'])fsCharts['fsCh3b'].destroy();
+      fsCharts['fsCh3b']=new Chart(ctx3b,{
+        type:'line',
+        data:{labels:qLbls,datasets:[
+          {label:'CAGR 1Y',data:cagr1y,borderColor:PASTEL.blue,borderWidth:2,pointRadius:0,tension:0.25,fill:false},
+          {label:'CAGR 3Y',data:cagr3y,borderColor:PASTEL.green,borderWidth:2,borderDash:[4,3],pointRadius:0,tension:0.35,fill:false},
+        ]},
+        options:{
+          responsive:true,maintainAspectRatio:false,
+          interaction:{mode:'index',intersect:false},
+          plugins:{legend:{display:true,labels:{font:{size:10},color:'#b0b0b0',boxWidth:10,padding:8}}},
+          scales:{
+            x:{ticks:{font:{size:9},color:TC,maxTicksLimit:8,maxRotation:45},grid:{color:GC}},
+            y:{ticks:{font:{size:9},color:'#b0b0b0',callback:v=>v.toFixed(1)+'%'},grid:{color:GC}},
+          }
+        }
+      });
+    }
 
     // Chart 5: Margins left, Price hidden
     mkDual('fsCh5',qLbls,priceAtQ,[
