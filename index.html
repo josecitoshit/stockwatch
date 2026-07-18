@@ -271,7 +271,6 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
           <th onclick="sortBy('rsiW')" id="th-rsiW">RSI</th>
           <th onclick="sortBy('macdHist')" id="th-macdHist">MACD</th>
           <th onclick="sortBy('shortFloat')" id="th-shortFloat">SHORT %</th>
-          <th>PRÓX. EARNINGS</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
@@ -797,7 +796,6 @@ let tickers=[...DEFAULT_TICKERS],stockData={},loading=false,selectedTicker=null;
 let sortKey='chgPct',sortDir='desc';
 let pfPositions=JSON.parse(localStorage.getItem('pf_positions')||'[]');
 let realizedEvents=JSON.parse(localStorage.getItem('pf_realized')||'[]');
-let earningsCache=JSON.parse(localStorage.getItem('pf_earnings_cache')||'{}');
 
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 async function withLimit(tasks,limit=3){
@@ -1213,6 +1211,14 @@ function mkDual(id,qLbls,priceData,leftDatasets,rightDatasets,rightTickFmt,leftT
   });
 }
 
+// Average of the last N quarters (5 years = 20 quarters), ignoring nulls.
+// Falls back to whatever history is available if there's less than 5 years.
+function avg5y(series,quarters=20){
+  const slice=series.slice(Math.max(0,series.length-quarters)).filter(v=>v!=null);
+  if(!slice.length)return null;
+  return slice.reduce((a,b)=>a+b,0)/slice.length;
+}
+
 async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peForward,peg){
   const container=document.getElementById('fsCharts');
   container.innerHTML=`<div class="charts-loading">⏳ Cargando gráficos...</div>`;
@@ -1409,13 +1415,13 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
     <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:24px;">
       <div class="chart-box"><div class="chart-box-title">Precio · Revenue · P/E</div><div id="fsCh1PeCard" style="position:absolute;top:14px;right:14px;background:var(--bg4);border:1px solid var(--border2);border-radius:3px;padding:6px 10px;font-size:11px;line-height:1.6;z-index:2;"></div><div style="height:220px;"><canvas id="fsCh1"></canvas></div></div>
       ${noData?'':`
-      <div class="chart-box"><div class="chart-box-title">Precio · Net Income · ROE · ROA</div><div style="height:220px;"><canvas id="fsCh2"></canvas></div></div>
+      <div class="chart-box"><div class="chart-box-title">Precio · Net Income · ROE · ROA</div><div id="fsCh2AvgCard" style="position:absolute;top:14px;right:14px;background:var(--bg4);border:1px solid var(--border2);border-radius:3px;padding:6px 10px;font-size:11px;line-height:1.6;z-index:2;"></div><div style="height:220px;"><canvas id="fsCh2"></canvas></div></div>
       <div style="display:flex;gap:16px;align-items:stretch;">
-        <div class="chart-box" style="flex:1 1 60%;min-width:0;"><div class="chart-box-title">Precio · EPS · Shares Out</div><div style="height:220px;"><canvas id="fsCh3"></canvas></div></div>
-        <div class="chart-box" style="flex:1 1 40%;min-width:0;"><div class="chart-box-title">CAGR Shares 1Y · 3Y</div><div style="height:220px;"><canvas id="fsCh3b"></canvas></div></div>
+        <div class="chart-box" style="flex:1 1 60%;min-width:0;"><div class="chart-box-title">Precio · EPS · Shares Out</div><div id="fsCh3AvgCard" style="position:absolute;top:14px;right:14px;background:var(--bg4);border:1px solid var(--border2);border-radius:3px;padding:6px 10px;font-size:11px;line-height:1.6;z-index:2;"></div><div style="height:220px;"><canvas id="fsCh3"></canvas></div></div>
+        <div class="chart-box" style="flex:1 1 40%;min-width:0;"><div class="chart-box-title">CAGR Shares 1Y · 3Y</div><div id="fsCh3bAvgCard" style="position:absolute;top:14px;right:14px;background:var(--bg4);border:1px solid var(--border2);border-radius:3px;padding:6px 10px;font-size:11px;line-height:1.6;z-index:2;"></div><div style="height:220px;"><canvas id="fsCh3b"></canvas></div></div>
       </div>
-      <div class="chart-box"><div class="chart-box-title">Precio · Gross Margin · Operating Margin · Net Margin</div><div style="height:220px;"><canvas id="fsCh5"></canvas></div></div>
-      <div class="chart-box"><div class="chart-box-title">Precio · Net Cash Flow · FCF per Share</div><div style="height:220px;"><canvas id="fsCh6"></canvas></div></div>
+      <div class="chart-box"><div class="chart-box-title">Precio · Gross Margin · Operating Margin · Net Margin</div><div id="fsCh5AvgCard" style="position:absolute;top:14px;right:14px;background:var(--bg4);border:1px solid var(--border2);border-radius:3px;padding:6px 10px;font-size:11px;line-height:1.6;z-index:2;"></div><div style="height:220px;"><canvas id="fsCh5"></canvas></div></div>
+      <div class="chart-box"><div class="chart-box-title">Precio · Net Cash Flow · FCF per Share · FCF Yield</div><div id="fsCh6AvgCard" style="position:absolute;top:14px;right:14px;background:var(--bg4);border:1px solid var(--border2);border-radius:3px;padding:6px 10px;font-size:11px;line-height:1.6;z-index:2;"></div><div style="height:220px;"><canvas id="fsCh6"></canvas></div></div>
       `}
     </div>`;
 
@@ -1430,9 +1436,12 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
   ],fmtBig,v=>v?.toFixed(1)+'x');
   const peCard=document.getElementById('fsCh1PeCard');
   if(peCard){
+    const peAvg=avg5y(pe),revAvg=avg5y(rev);
     peCard.innerHTML=`
       <div><span style="color:var(--text3);">P/E Fwd</span> <span style="color:${PASTEL.blue};font-weight:700;">${peForward!=null?peForward.toFixed(1)+'x':'—'}</span></div>
-      <div><span style="color:var(--text3);">PEG</span> <span style="color:${PASTEL.pink};font-weight:700;">${peg!=null?peg.toFixed(2):'—'}</span></div>`;
+      <div><span style="color:var(--text3);">PEG</span> <span style="color:${PASTEL.pink};font-weight:700;">${peg!=null?peg.toFixed(2):'—'}</span></div>
+      <div style="border-top:1px solid var(--border2);margin-top:4px;padding-top:4px;"><span style="color:var(--text3);">P/E prom. 5Y</span> <span style="color:${PASTEL.yellow};font-weight:700;">${peAvg!=null?peAvg.toFixed(1)+'x':'—'}</span></div>
+      <div><span style="color:var(--text3);">Revenue prom. 5Y</span> <span style="color:${PASTEL.green};font-weight:700;">${revAvg!=null?fmtBig(revAvg):'—'}</span></div>`;
   }
 
   if(!noData){
@@ -1443,7 +1452,14 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
     ],[
       {label:'Net Income',data:ni,type:'bar',backgroundColor:ni.map(v=>v===null?'transparent':v>=0?PASTEL.green+'59':PASTEL.pink+'59'),borderRadius:2},
     ],fmtBig,v=>v?.toFixed(1)+'%');
-
+    {
+      const roeAvg=avg5y(roe),roaAvg=avg5y(roa),niAvg=avg5y(ni);
+      const card=document.getElementById('fsCh2AvgCard');
+      if(card)card.innerHTML=`
+        <div><span style="color:var(--text3);">ROE prom. 5Y</span> <span style="color:${PASTEL.yellow};font-weight:700;">${roeAvg!=null?roeAvg.toFixed(1)+'%':'—'}</span></div>
+        <div><span style="color:var(--text3);">ROA prom. 5Y</span> <span style="color:${PASTEL.pink};font-weight:700;">${roaAvg!=null?roaAvg.toFixed(1)+'%':'—'}</span></div>
+        <div><span style="color:var(--text3);">Net Inc. prom. 5Y</span> <span style="color:${PASTEL.green};font-weight:700;">${niAvg!=null?fmtBig(niAvg):'—'}</span></div>`;
+    }
     // Chart 3: EPS bars, Shares Out — Shares Out has its own hidden scale since
     // the exact count doesn't matter, just the shape of the trend.
     const sharesM=sharesInterp.map(v=>v?+(v/1e6).toFixed(1):null);
@@ -1452,6 +1468,11 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
     ],[
       {label:'EPS',data:eps,type:'bar',backgroundColor:eps.map(v=>v===null?'transparent':v>=0?PASTEL.green+'66':PASTEL.pink+'66'),borderRadius:2},
     ],fmtBig,v=>v!=null?v.toFixed(1)+'%':'');
+    {
+      const epsAvg=avg5y(eps);
+      const card=document.getElementById('fsCh3AvgCard');
+      if(card)card.innerHTML=`<div><span style="color:var(--text3);">EPS prom. 5Y</span> <span style="color:${PASTEL.green};font-weight:700;">${epsAvg!=null?'$'+epsAvg.toFixed(2):'—'}</span></div>`;
+    }
 
     // Chart 3b: CAGR of shares outstanding, 1-year and 3-year trailing, computed
     // at each quarter — smooths the noisy quarter-to-quarter buyback/dilution
@@ -1485,6 +1506,13 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
         }
       });
     }
+    {
+      const cagr1yAvg=avg5y(cagr1y),cagr3yAvg=avg5y(cagr3y);
+      const card=document.getElementById('fsCh3bAvgCard');
+      if(card)card.innerHTML=`
+        <div><span style="color:var(--text3);">CAGR 1Y prom. 5Y</span> <span style="color:${PASTEL.blue};font-weight:700;">${cagr1yAvg!=null?cagr1yAvg.toFixed(1)+'%':'—'}</span></div>
+        <div><span style="color:var(--text3);">CAGR 3Y prom. 5Y</span> <span style="color:${PASTEL.green};font-weight:700;">${cagr3yAvg!=null?cagr3yAvg.toFixed(1)+'%':'—'}</span></div>`;
+    }
 
     // Chart 5: Margins left, Price hidden
     mkDual('fsCh5',qLbls,priceAtQ,[
@@ -1492,17 +1520,46 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
       {label:'Op. Margin %',data:om,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:0,tension:0.35,borderDash:[4,3],fill:false},
       {label:'Net Margin %',data:nm,type:'line',borderColor:PASTEL.pink,borderWidth:2,pointRadius:0,tension:0.35,borderDash:[4,3],fill:false},
     ],[],null,v=>v?.toFixed(1)+'%');
+    {
+      const gmAvg=avg5y(gm),omAvg=avg5y(om),nmAvg=avg5y(nm);
+      const card=document.getElementById('fsCh5AvgCard');
+      if(card)card.innerHTML=`
+        <div><span style="color:var(--text3);">Gross prom. 5Y</span> <span style="color:${PASTEL.green};font-weight:700;">${gmAvg!=null?gmAvg.toFixed(1)+'%':'—'}</span></div>
+        <div><span style="color:var(--text3);">Op. prom. 5Y</span> <span style="color:${PASTEL.yellow};font-weight:700;">${omAvg!=null?omAvg.toFixed(1)+'%':'—'}</span></div>
+        <div><span style="color:var(--text3);">Net prom. 5Y</span> <span style="color:${PASTEL.pink};font-weight:700;">${nmAvg!=null?nmAvg.toFixed(1)+'%':'—'}</span></div>`;
+    }
 
-    // Chart 6: Net Cash Flow bars right, FCF per Share line left, Price hidden
+    // Chart 6: Net Cash Flow bars right, FCF per Share + FCF Yield (TTM) left,
+    // Price hidden. FCF Yield uses trailing 4-quarter FCF / market cap at each
+    // point — same TTM approach as P/E — so it's consistent with the "current"
+    // FCF Yield shown in the fund cards above.
     const fcfPerShare=fcfQ.map((v,i)=>{
       const sh=sharesInterp[i];
       return(v!==null&&sh&&sh>0)?+(v/sh).toFixed(2):null;
     });
+    const fcfYieldHist=qLbls.map((_,i)=>{
+      const slice=fcfQ.slice(Math.max(0,i-3),i+1).filter(v=>v!==null);
+      if(slice.length<2)return null;
+      const fcfTTM=slice.reduce((a,b)=>a+b,0);
+      const sh=sharesInterp[i],price=priceAtQ[i];
+      if(!sh||!price)return null;
+      const marketCap=price*sh;
+      return marketCap>0?+((fcfTTM/marketCap)*100).toFixed(2):null;
+    });
     mkDual('fsCh6',qLbls,priceAtQ,[
       {label:'FCF/Share',data:fcfPerShare,type:'line',borderColor:PASTEL.green,borderWidth:2,pointRadius:0,tension:0.35,fill:false},
+      {label:'FCF Yield % (TTM)',data:fcfYieldHist,type:'line',borderColor:PASTEL.blue,borderWidth:2,borderDash:[4,3],pointRadius:0,tension:0.25,fill:false,yAxisID:'yRef'},
     ],[
       {label:'Net Cash Flow',data:ocf,type:'bar',backgroundColor:ocf.map(v=>v===null?'transparent':v>=0?PASTEL.blue+'59':PASTEL.pink+'59'),borderRadius:2},
     ],fmtBig,v=>'$'+v?.toFixed(2));
+    {
+      const fcfShareAvg=avg5y(fcfPerShare),fcfYieldAvg=avg5y(fcfYieldHist),ocfAvg=avg5y(ocf);
+      const card=document.getElementById('fsCh6AvgCard');
+      if(card)card.innerHTML=`
+        <div><span style="color:var(--text3);">FCF/Share prom. 5Y</span> <span style="color:${PASTEL.green};font-weight:700;">${fcfShareAvg!=null?'$'+fcfShareAvg.toFixed(2):'—'}</span></div>
+        <div><span style="color:var(--text3);">FCF Yield prom. 5Y</span> <span style="color:${PASTEL.blue};font-weight:700;">${fcfYieldAvg!=null?fcfYieldAvg.toFixed(1)+'%':'—'}</span></div>
+        <div><span style="color:var(--text3);">Net CF prom. 5Y</span> <span style="color:${PASTEL.pink};font-weight:700;">${ocfAvg!=null?fmtBig(ocfAvg):'—'}</span></div>`;
+    }
   }
 } // cached S&P500 return over last 20 weeks
 let spyReturn20W=null; // cached S&P500 return over last 20 weeks
@@ -1723,7 +1780,7 @@ function renderTable(){
   const totalRows=rows.length;
   document.getElementById('countBadge').textContent=totalRows+' tickers';
   const tbody=document.getElementById('tbody');tbody.innerHTML='';
-  const NCOLS=13;
+  const NCOLS=12;
   const SK='<td><span class="skel" style="width:38px;height:10px;">&nbsp;</span></td>';
 
   const renderRow=(d)=>{
@@ -1746,8 +1803,7 @@ function renderTable(){
         <td class="td-sep" style="${d.relVol!=null&&d.relVol>=2?'color:var(--amber);font-weight:700;':''}">${d.relVol!=null?d.relVol.toFixed(2)+'x':'—'}</td>
         <td class="${rsiCls}" style="font-weight:700;">${d.rsiW!=null?d.rsiW.toFixed(1):'—'}</td>
         <td class="${d.macdHist!=null?(d.macdHist>=0?'up':'down'):''}" style="font-weight:700;">${d.macdHist!=null?(d.macdHist>=0?'+':'')+d.macdHist.toFixed(2):'—'}</td>
-        <td class="${shortCls}">${d.shortFloat!=null?d.shortFloat.toFixed(1)+'%':'—'}</td>
-        <td data-earn-cell="${d.ticker}">${formatEarningsCell(earningsCache[d.ticker]?.date)}</td>`;
+        <td class="${shortCls}">${d.shortFloat!=null?d.shortFloat.toFixed(1)+'%':'—'}</td>`;
       tr.onclick=()=>openDetail(d.ticker);
     }
     tbody.appendChild(tr);
@@ -1773,7 +1829,6 @@ function renderTable(){
     tbody.appendChild(hdr);
     group.forEach(renderRow);
   }
-  ensureEarningsDates(rows.filter(d=>d.loaded).map(d=>d.ticker));
 }
 function sortBy(col){
   if(sortKey===col)document.getElementById('sortDir').value=sortDir==='desc'?'asc':'desc';
@@ -2960,53 +3015,6 @@ function buildAllCashflows(){
     else if(e.type==='dividendo')cfs.push({date:e.date,amount:e.amtUSD||0});
   }
   return cfs;
-}
-
-// ── PRÓXIMA EARNINGS CALL ──
-function saveEarningsCache(){localStorage.setItem('pf_earnings_cache',JSON.stringify(earningsCache));}
-
-async function fetchEarningsDate(ticker){
-  try{
-    const url=`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=calendarEvents`;
-    const data=await proxyFetch(url);
-    const r=data.quoteSummary?.result?.[0];
-    const arr=r?.calendarEvents?.earnings?.earningsDate;
-    const raw=arr?.[0]?.raw;
-    if(!raw)return null;
-    return new Date(raw*1000).toISOString().slice(0,10);
-  }catch(e){return null;}
-}
-
-function formatEarningsCell(dateStr){
-  if(!dateStr)return'<span style="color:var(--text3);">—</span>';
-  const d=new Date(dateStr+'T00:00:00');
-  const today=new Date();today.setHours(0,0,0,0);
-  const diffDays=Math.round((d-today)/86400000);
-  const label=d.toLocaleDateString('es-AR',{day:'2-digit',month:'short'});
-  let color='var(--text2)';
-  if(diffDays<0)color='var(--text3)';
-  else if(diffDays<=7)color='var(--red)';
-  else if(diffDays<=21)color='var(--amber)';
-  const suffix=diffDays<0?' (pasada)':diffDays===0?' (hoy)':diffDays===1?' (mañana)':` (en ${diffDays}d)`;
-  return`<span style="color:${color};">${label}${suffix}</span>`;
-}
-
-// Fetches (and caches for 12h) upcoming earnings dates for the given tickers,
-// then patches the corresponding table cells in place — no full re-render needed.
-async function ensureEarningsDates(tickerList){
-  const uniq=[...new Set(tickerList)];
-  const staleMs=12*3600*1000;
-  const need=uniq.filter(t=>{
-    const c=earningsCache[t];
-    return!c||(Date.now()-c.fetchedAt)>staleMs;
-  });
-  if(!need.length)return;
-  await withLimit(need.map(ticker=>async()=>{
-    const date=await fetchEarningsDate(ticker);
-    earningsCache[ticker]={date,fetchedAt:Date.now()};
-    document.querySelectorAll(`[data-earn-cell="${CSS.escape(ticker)}"]`).forEach(cell=>{cell.innerHTML=formatEarningsCell(date);});
-  }),3);
-  saveEarningsCache();
 }
 
 // ── PORTFOLIO MODAL ──
