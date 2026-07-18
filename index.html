@@ -113,7 +113,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 #fsMeta{display:flex;align-items:center;gap:22px;margin-bottom:14px;flex-wrap:wrap;font-size:13px;padding-bottom:14px;border-bottom:1px solid var(--border2);}
 #fsFund{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:6px;margin-bottom:22px;}
 .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
-.chart-box{background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:14px;}
+.chart-box{background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:14px;position:relative;}
 .chart-box-title{font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;}
 .chart-box canvas{display:block;}
 .charts-loading{text-align:center;padding:30px;color:var(--amber);font-size:12px;}
@@ -1164,7 +1164,7 @@ function mkDual(id,qLbls,priceData,leftDatasets,rightDatasets,rightTickFmt,leftT
   // Price: visible line but no axis labels/title — pastel rainbow gradient
   const priceDs={label:'Precio',data:priceData,type:'line',borderColor:PASTEL.purple,borderWidth:2.5,pointRadius:0,tension:0.35,fill:false,yAxisID:'yPrice',order:0};
   const allDs=[
-    ...leftDatasets.map(d=>({...d,yAxisID:'yLeft',order:2})),
+    ...leftDatasets.map(d=>({...d,yAxisID:d.yAxisID||'yLeft',order:2})),
     priceDs,
     ...rightDatasets.map(d=>({...d,yAxisID:'yRight',order:1})),
   ];
@@ -1189,6 +1189,21 @@ function mkDual(id,qLbls,priceData,leftDatasets,rightDatasets,rightTickFmt,leftT
         },
         yPrice:{
           type:'linear',position:'right',
+          ticks:{display:false},
+          grid:{drawOnChartArea:false},
+          title:{display:false},
+        },
+        // Independent, hidden axis for flat "current value" reference lines (e.g.
+        // P/E Forward, PEG) whose scale has nothing to do with the historical
+        // P/E axis — without this they'd get squashed near zero next to it.
+        yRef:{
+          type:'linear',position:'right',beginAtZero:true,
+          ticks:{display:false},
+          grid:{drawOnChartArea:false},
+          title:{display:false},
+        },
+        yRef2:{
+          type:'linear',position:'right',beginAtZero:true,
           ticks:{display:false},
           grid:{drawOnChartArea:false},
           title:{display:false},
@@ -1371,8 +1386,17 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
     if(e&&sh&&sh>0){const bps=e/sh;return bps>0?+(p/bps).toFixed(2):null;}
     return null;
   });
-  const roe=ni.map((v,i)=>pct(v,eq[i]));
-  const roa=ni.map((v,i)=>pct(v,assets[i]));
+  // ROE/ROA use TTM net income (sum of last 4 quarters rolling), same approach
+  // as P/E's TTM EPS above — a single quarter's income vs a full year of equity/
+  // assets understates the return and doesn't match the "current" ROE/ROA cards,
+  // which are also TTM-based.
+  const niTTM=ni.map((v,i)=>{
+    const slice=ni.slice(Math.max(0,i-3),i+1).filter(v=>v!==null);
+    if(slice.length<2)return null;
+    return slice.reduce((a,b)=>a+b,0);
+  });
+  const roe=niTTM.map((v,i)=>pct(v,eq[i]));
+  const roa=niTTM.map((v,i)=>pct(v,assets[i]));
   const debtEq=debt.map((v,i)=>ratio(v,eq[i]));
   const gm=gp.map((v,i)=>pct(v,rev[i]));
   const om=oi.map((v,i)=>pct(v,rev[i]));
@@ -1383,7 +1407,7 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
       // GRÁFICOS HISTÓRICOS — 5 AÑOS ${noData?'<span style="color:var(--red);font-weight:400;">(datos fundamentales no disponibles)</span>':''}
     </div>
     <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:24px;">
-      <div class="chart-box"><div class="chart-box-title">Precio · Revenue · P/E · P/E Fwd · PEG</div><div style="height:220px;"><canvas id="fsCh1"></canvas></div></div>
+      <div class="chart-box"><div class="chart-box-title">Precio · Revenue · P/E</div><div id="fsCh1PeCard" style="position:absolute;top:14px;right:14px;background:var(--bg4);border:1px solid var(--border2);border-radius:3px;padding:6px 10px;font-size:11px;line-height:1.6;z-index:2;"></div><div style="height:220px;"><canvas id="fsCh1"></canvas></div></div>
       ${noData?'':`
       <div class="chart-box"><div class="chart-box-title">Precio · Net Income · ROE · ROA</div><div style="height:220px;"><canvas id="fsCh2"></canvas></div></div>
       <div class="chart-box"><div class="chart-box-title">Precio · EPS · Shares Outstanding</div><div style="height:220px;"><canvas id="fsCh3"></canvas></div></div>
@@ -1393,24 +1417,27 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peFor
       `}
     </div>`;
 
-  // Chart 1: P/E left, Revenue right, Price hidden — plus P/E Forward and PEG as
-  // flat reference lines (these are forward-looking analyst estimates, so there's
-  // no real historical quarterly series for them, just today's value)
-  const peForwardLine=qLbls.map(()=>peForward??null);
-  const pegLine=qLbls.map(()=>peg??null);
+  // Chart 1: P/E left, Revenue right, Price hidden.
+  // P/E Forward and PEG are forward-looking analyst estimates — there's no real
+  // historical quarterly series for them (just today's value), so instead of a
+  // flat line across the whole chart they're shown as a small card in the corner.
   mkDual('fsCh1',qLbls,priceAtQ,[
     {label:'P/E',data:pe,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:0,tension:0.35,fill:false},
-    {label:'P/E Forward (actual)',data:peForwardLine,type:'line',borderColor:PASTEL.blue,borderWidth:1.5,borderDash:[6,4],pointRadius:0,fill:false},
-    {label:'PEG (actual)',data:pegLine,type:'line',borderColor:PASTEL.pink,borderWidth:1.5,borderDash:[6,4],pointRadius:0,fill:false},
   ],[
     {label:'Revenue',data:rev,type:'bar',backgroundColor:PASTEL.green+'40',borderRadius:2},
   ],fmtBig,v=>v?.toFixed(1)+'x');
+  const peCard=document.getElementById('fsCh1PeCard');
+  if(peCard){
+    peCard.innerHTML=`
+      <div><span style="color:var(--text3);">P/E Fwd</span> <span style="color:${PASTEL.blue};font-weight:700;">${peForward!=null?peForward.toFixed(1)+'x':'—'}</span></div>
+      <div><span style="color:var(--text3);">PEG</span> <span style="color:${PASTEL.pink};font-weight:700;">${peg!=null?peg.toFixed(2):'—'}</span></div>`;
+  }
 
   if(!noData){
     // Chart 2: ROE+ROA left, Net Income right, Price hidden
     mkDual('fsCh2',qLbls,priceAtQ,[
-      {label:'ROE %',data:roe,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:0,tension:0.35,fill:false},
-      {label:'ROA %',data:roa,type:'line',borderColor:PASTEL.pink,borderWidth:2,pointRadius:0,tension:0.35,fill:false},
+      {label:'ROE % (TTM)',data:roe,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:0,tension:0.35,fill:false},
+      {label:'ROA % (TTM)',data:roa,type:'line',borderColor:PASTEL.pink,borderWidth:2,pointRadius:0,tension:0.35,fill:false},
     ],[
       {label:'Net Income',data:ni,type:'bar',backgroundColor:ni.map(v=>v===null?'transparent':v>=0?PASTEL.green+'59':PASTEL.pink+'59'),borderRadius:2},
     ],fmtBig,v=>v?.toFixed(1)+'%');
