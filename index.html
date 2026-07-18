@@ -97,38 +97,6 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 .fv{font-size:14px;font-weight:700;color:var(--text);}
 .fv.up{color:var(--green);}.fv.down{color:var(--red);}
 
-/* ECO TABLES */
-.eco-section{margin-bottom:18px;}
-.eco-hd{font-size:12px;font-weight:700;letter-spacing:.1em;margin-bottom:10px;padding:6px 0;display:flex;align-items:center;gap:8px;border-bottom:2px solid var(--border2);}
-.eco-hd-up{color:var(--green);font-size:15px;}
-.eco-hd-down{color:var(--red);font-size:15px;}
-.eco-hd-label-up{color:var(--green);}
-.eco-hd-label-down{color:var(--red);}
-.eco-table{width:100%;border-collapse:collapse;font-size:12px;}
-.eco-table th{padding:6px 10px;text-align:right;color:var(--text3);font-size:11px;font-weight:700;letter-spacing:.08em;border-bottom:1px solid var(--border2);}
-.eco-table th:first-child{text-align:left;}
-.eco-table th.rh{color:var(--red);}
-.eco-table th.gh{color:var(--green);}
-.eco-table td{padding:5px 10px;text-align:right;border-bottom:1px solid var(--border);}
-.eco-table td:first-child{text-align:left;}
-.eco-table tr.main-row td{color:#fff;font-weight:500;}
-.eco-table tr.main-row td.mov-up{color:var(--green);font-weight:700;}
-.eco-table tr.main-row td.mov-down{color:var(--red);font-weight:700;}
-.eco-table tr.sub-row td{color:var(--text3);font-size:11px;}
-.eco-table tr.sub-row td:first-child{padding-left:16px;color:var(--text2);}
-.eco-table tr.sub-row td.mov-up{color:var(--green);}
-.eco-table tr.sub-row td.mov-down{color:var(--red);}
-.eco-divider{border:none;border-top:1px solid var(--border2);margin:16px 0;}
-.eco-stats{font-size:12px;border:1px solid var(--border2);border-radius:3px;padding:12px 16px;margin-bottom:14px;line-height:2.0;background:var(--bg3);}
-.eco-stats-row{display:flex;gap:8px;align-items:baseline;}
-.eco-lbl{color:var(--text3);min-width:60px;font-size:11px;}
-.eco-current{border:1px solid var(--blue);border-radius:3px;padding:14px 16px;font-size:12px;line-height:2.0;background:rgba(51,187,255,0.04);}
-.eco-current-title{text-align:center;color:var(--blue);font-size:11px;font-weight:700;letter-spacing:.12em;margin-bottom:12px;border-bottom:1px solid rgba(51,187,255,0.2);padding-bottom:8px;}
-.eco-fwd{display:flex;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border2);}
-.eco-fwd-item{flex:1;text-align:center;background:var(--bg4);border-radius:3px;padding:10px 4px;border:1px solid var(--border);}
-.eco-fwd-lbl{font-size:10px;color:var(--text3);margin-bottom:4px;font-weight:700;letter-spacing:.06em;}
-.eco-fwd-val{font-size:15px;font-weight:700;}
-.eco-fwd-bull{font-size:10px;color:var(--text3);margin-top:3px;}
 .loading-msg{text-align:center;padding:40px 20px;color:var(--text3);font-size:12px;}
 
 /* FULLSCREEN */
@@ -144,12 +112,6 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 #fsBody::-webkit-scrollbar-thumb{background:var(--bg4);}
 #fsMeta{display:flex;align-items:center;gap:22px;margin-bottom:14px;flex-wrap:wrap;font-size:13px;padding-bottom:14px;border-bottom:1px solid var(--border2);}
 #fsFund{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:6px;margin-bottom:22px;}
-#fsEco .eco-table{font-size:13px;}
-#fsEco .eco-table th{font-size:12px;padding:7px 12px;}
-#fsEco .eco-table td{padding:6px 12px;}
-#fsEco .eco-stats{font-size:13px;}
-#fsEco .eco-current{font-size:13px;}
-#fsEco .eco-section{margin-bottom:24px;}
 .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
 .chart-box{background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:14px;}
 .chart-box-title{font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;}
@@ -335,7 +297,6 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
       </div>
       <div class="fg" id="dFund"></div>
       <div id="dTargets" style="margin-top:14px;"></div>
-      <div id="dEco"><div class="loading-msg">Seleccioná un ticker para ver el análisis</div></div>
     </div>
   </div>
 </div>
@@ -353,7 +314,6 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
     <div id="fsMeta"></div>
     <div id="fsFund"></div>
     <div id="fsCharts"></div>
-    <div id="fsEco"></div>
   </div>
 </div>
 
@@ -905,94 +865,6 @@ function resampleWeekly(ts,o,h,l,c,v){
 }
 const last=arr=>{const a=arr.filter(v=>v!==null);return a.length?a[a.length-1]:null;};
 
-// ── PIVOT & ECONOMETRIC ──
-function fmtDate(ts){
-  const d=new Date(ts*1000);
-  const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return d.getDate()+'-'+mo[d.getMonth()]+'-'+d.getFullYear().toString().slice(2);
-}
-function detectPivots(closes,timestamps,window=5){
-  const pivots=[];
-  for(let i=window;i<closes.length-window;i++){
-    if(closes[i]===null)continue;
-    let isHigh=true,isLow=true;
-    for(let j=i-window;j<=i+window;j++){
-      if(j===i||closes[j]===null)continue;
-      if(closes[j]>=closes[i])isHigh=false;
-      if(closes[j]<=closes[i])isLow=false;
-    }
-    if(isHigh)pivots.push({idx:i,type:'high',price:closes[i],ts:timestamps[i]});
-    if(isLow) pivots.push({idx:i,type:'low', price:closes[i],ts:timestamps[i]});
-  }
-  return pivots;
-}
-function buildSegments(closes,timestamps){
-  const pivots=detectPivots(closes,timestamps,5);
-  if(pivots.length<2)return{rallies:[],drops:[],all:[]};
-  const segments=[];
-  for(let i=0;i<pivots.length-1;i++){
-    const a=pivots[i],b=pivots[i+1];
-    const pct=((b.price/a.price)-1)*100;
-    const bars=b.idx-a.idx;
-    segments.push({from:fmtDate(a.ts),to:fmtDate(b.ts),priceFrom:a.price,priceTo:b.price,pct,bars,weeks:+(bars/5).toFixed(1),fromIdx:a.idx,toIdx:b.idx});
-  }
-  const rallies=segments.filter(s=>s.pct>10).sort((a,b)=>b.pct-a.pct).slice(0,5);
-  const drops=segments.filter(s=>s.pct<-10).sort((a,b)=>a.pct-b.pct).slice(0,5);
-  return{rallies,drops,all:segments,pivotCount:pivots.length};
-}
-function findFollowup(seg,closes,timestamps){
-  const endIdx=seg.toIdx;
-  if(endIdx>=closes.length-3)return null;
-  let extreme=closes[endIdx],extremeIdx=endIdx;
-  const isRally=seg.pct>0;
-  for(let i=endIdx+1;i<Math.min(endIdx+40,closes.length);i++){
-    if(closes[i]===null)continue;
-    if(isRally&&closes[i]<extreme){extreme=closes[i];extremeIdx=i;}
-    if(!isRally&&closes[i]>extreme){extreme=closes[i];extremeIdx=i;}
-    if(Math.abs((extreme/closes[endIdx])-1)>0.05&&i>endIdx+5)break;
-  }
-  if(extremeIdx===endIdx)return null;
-  const pct=((extreme/closes[endIdx])-1)*100;
-  return{from:fmtDate(timestamps[endIdx]),to:fmtDate(timestamps[extremeIdx]),pct,bars:extremeIdx-endIdx,weeks:+((extremeIdx-endIdx)/5).toFixed(1),priceFrom:closes[endIdx],priceTo:extreme};
-}
-function forwardReturns(closes,fromIdx){
-  const res={};
-  for(const d of[10,20,40]){
-    const ti=fromIdx+d;
-    res[d]=(ti<closes.length&&closes[ti]!==null)?((closes[ti]/closes[fromIdx])-1)*100:null;
-  }
-  return res;
-}
-function currentSituation(closes,timestamps,all){
-  if(!closes.length)return null;
-  const lastPrice=last(closes);
-  const pivots=detectPivots(closes,timestamps,5);
-  if(!pivots.length)return null;
-  let lastPeak=null,lastValley=null;
-  for(let i=pivots.length-1;i>=0;i--){
-    if(!lastPeak&&pivots[i].type==='high')lastPeak=pivots[i];
-    if(!lastValley&&pivots[i].type==='low')lastValley=pivots[i];
-    if(lastPeak&&lastValley)break;
-  }
-  const drops=all.filter(s=>s.pct<-10);
-  let percentile=null;
-  if(drops.length&&lastPeak){
-    const cd=((lastPrice/lastPeak.price)-1)*100;
-    percentile=Math.round(drops.filter(d=>d.pct<=cd).length/drops.length*100);
-  }
-  let similarFwd=null;
-  if(lastPeak&&drops.length){
-    const cd=((lastPrice/lastPeak.price)-1)*100;
-    const similar=drops.filter(d=>Math.abs(d.pct-cd)<10);
-    if(similar.length){
-      const fwdArr=similar.map(d=>forwardReturns(closes,d.toIdx));
-      const avg=k=>{const v=fwdArr.map(r=>r[k]).filter(v=>v!==null);return v.length?+(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1):null;};
-      const bull=k=>{const v=fwdArr.map(r=>r[k]).filter(v=>v!==null);return v.length?Math.round(v.filter(v=>v>0).length/v.length*100):null;};
-      similarFwd={n:similar.length,r10:{avg:avg(10),bull:bull(10)},r20:{avg:avg(20),bull:bull(20)},r40:{avg:avg(40),bull:bull(40)}};
-    }
-  }
-  return{lastPeak,lastValley,lastPrice,percentile,similarFwd,drops};
-}
 
 // ── PROXY & DATA FETCHING ──
 const PROXY_BASE='https://stockwatch-proxyjobo.vercel.app';
@@ -1065,6 +937,8 @@ function parseMarketCap(html){
 function parseFV(html){
   if(!html||typeof html!=='string')return{};
   const pe=fvNum(html,'P/E'),pb=fvNum(html,'P/B');
+  const peForward=fvNum(html,'Forward P\\/E');
+  const peg=fvNum(html,'PEG');
   const eps=fvNum(html,'EPS \\(ttm\\)')||fvNum(html,'EPS \\(TTM\\)')||fvNum(html,'EPS');
   const roe=fvNum(html,'ROE'),roa=fvNum(html,'ROA');
   const divYield=fvDivYield(html);
@@ -1072,7 +946,7 @@ function parseFV(html){
   const pfcf=fvNum(html,'P\\/FCF');
   const fcfYield=(pfcf&&pfcf>0)?(1/pfcf)*100:null;
   const shortFloat=fvShortFloat(html);
-  return{pe,pb,eps,roe,roa,divYield,marketCap,fcfYield,shortFloat};
+  return{pe,pb,peForward,peg,eps,roe,roa,divYield,marketCap,fcfYield,shortFloat};
 }
 async function yahooFetch(ticker){
   const p2=Math.floor(Date.now()/1000),p1=p2-2190*24*3600; // 6 years
@@ -1324,7 +1198,7 @@ function mkDual(id,qLbls,priceData,leftDatasets,rightDatasets,rightTickFmt,leftT
   });
 }
 
-async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding){
+async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding,peForward,peg){
   const container=document.getElementById('fsCharts');
   container.innerHTML=`<div class="charts-loading">⏳ Cargando gráficos...</div>`;
   destroyFsCharts();
@@ -1509,7 +1383,7 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding){
       // GRÁFICOS HISTÓRICOS — 5 AÑOS ${noData?'<span style="color:var(--red);font-weight:400;">(datos fundamentales no disponibles)</span>':''}
     </div>
     <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:24px;">
-      <div class="chart-box"><div class="chart-box-title">Precio · Revenue · P/E · P/B</div><div style="height:220px;"><canvas id="fsCh1"></canvas></div></div>
+      <div class="chart-box"><div class="chart-box-title">Precio · Revenue · P/E · P/E Fwd · PEG</div><div style="height:220px;"><canvas id="fsCh1"></canvas></div></div>
       ${noData?'':`
       <div class="chart-box"><div class="chart-box-title">Precio · Net Income · ROE · ROA</div><div style="height:220px;"><canvas id="fsCh2"></canvas></div></div>
       <div class="chart-box"><div class="chart-box-title">Precio · EPS · Shares Outstanding</div><div style="height:220px;"><canvas id="fsCh3"></canvas></div></div>
@@ -1519,10 +1393,15 @@ async function renderFsCharts(ticker,wCloses,wTimestamps,sharesOutstanding){
       `}
     </div>`;
 
-  // Chart 1: P/E + P/B left, Revenue right, Price hidden
+  // Chart 1: P/E left, Revenue right, Price hidden — plus P/E Forward and PEG as
+  // flat reference lines (these are forward-looking analyst estimates, so there's
+  // no real historical quarterly series for them, just today's value)
+  const peForwardLine=qLbls.map(()=>peForward??null);
+  const pegLine=qLbls.map(()=>peg??null);
   mkDual('fsCh1',qLbls,priceAtQ,[
     {label:'P/E',data:pe,type:'line',borderColor:PASTEL.yellow,borderWidth:2,pointRadius:0,tension:0.35,fill:false},
-    {label:'P/B',data:pb,type:'line',borderColor:PASTEL.pink,borderWidth:2,pointRadius:0,tension:0.35,fill:false},
+    {label:'P/E Forward (actual)',data:peForwardLine,type:'line',borderColor:PASTEL.blue,borderWidth:1.5,borderDash:[6,4],pointRadius:0,fill:false},
+    {label:'PEG (actual)',data:pegLine,type:'line',borderColor:PASTEL.pink,borderWidth:1.5,borderDash:[6,4],pointRadius:0,fill:false},
   ],[
     {label:'Revenue',data:rev,type:'bar',backgroundColor:PASTEL.green+'40',borderRadius:2},
   ],fmtBig,v=>v?.toFixed(1)+'x');
@@ -1687,6 +1566,8 @@ async function startLoad(){
       const pick=(...vals)=>{for(const v of vals)if(v!==null&&v!==undefined)return v;return null;};
       const pe=pick(fv.pe,poly.pe);
       const pb=pick(fv.pb,poly.pb);
+      const peForward=fv.peForward??null;
+      const peg=fv.peg??null;
       const eps=pick(fv.eps,poly.eps);
       const roe=pick(fv.roe,poly.roe);
       const roa=pick(fv.roa,poly.roa);
@@ -1698,12 +1579,9 @@ async function startLoad(){
       stockData[ticker]={
         ticker,price,chg,chgPct,high52,low52,distHigh52,distLow52,
         sma20W,sma20WDev,sma200W,sma200WDev,vsSP500,relVol,
-        pe,pb,roe,roa,fcfYield,divYield,eps,marketCap,shortFloat,
+        pe,pb,peForward,peg,roe,roa,fcfYield,divYield,eps,marketCap,shortFloat,
         rsiW:last(rsiWA),macdW:last(macdWO.macd),macdSigW:last(macdWO.signal),macdHist,
         wCloses:wc,wTimestamps:wk.t,sharesOutstanding,
-        rallies:null,drops:null,situation:null, // eco pending
-        ecoReady:false,
-        totalPivots:0,
         loaded:true,
       };
     }catch(e){stockData[ticker]={ticker,loaded:false,error:e.message};}
@@ -1717,29 +1595,8 @@ async function startLoad(){
   loading=false;
   document.getElementById('loadBtn').disabled=false;
   const ok=Object.values(stockData).filter(d=>d.loaded).length;
-  setStatus('ok · '+ok+' · calculando análisis...','loading');
   bar.style.display='none';
   renderTable();
-
-  // ── PASS 2: Econometric analysis in background (one by one, low priority) ──
-  for(const ticker of tickers){
-    const d=stockData[ticker];
-    if(!d||!d.loaded)continue;
-    await sleep(0); // yield to browser between each ticker
-    try{
-      const {rallies,drops,all,pivotCount}=buildSegments(d.wCloses,d.wTimestamps);
-      const situation=currentSituation(d.wCloses,d.wTimestamps,all||[]);
-      d.rallies=rallies;
-      d.drops=drops;
-      d.situation=situation;
-      d.totalPivots=pivotCount||0;
-      d.ecoReady=true;
-      // if this ticker is currently open in detail, refresh it
-      if(selectedTicker===ticker){
-        document.getElementById('dEco').innerHTML=buildEcoHtml(d);
-      }
-    }catch(e){d.ecoReady=true;}
-  }
   setStatus('listo · '+ok+' cargadas','ok');
 }
 
@@ -1884,102 +1741,6 @@ function buildFundHtml(d){
   ].map(f=>`<div class="fc"><div class="fl">${f.l}</div><div class="fv ${f.cls||''}">${f.v}</div></div>`).join('');
 }
 
-function buildEcoHtml(d){
-  if(!d.rallies&&!d.drops)return'<div class="loading-msg">Sin datos suficientes</div>';
-  const rallies=d.rallies||[],drops=d.drops||[];
-
-  const mkHeader=(isRally)=>`<thead><tr>
-    <th style="text-align:left;">#</th>
-    <th style="text-align:left;" class="${isRally?'gh':'rh'}">Movimiento</th>
-    <th style="text-align:left;" class="${isRally?'gh':'rh'}">Fechas</th>
-    <th class="${isRally?'gh':'rh'}">Precio ini</th>
-    <th class="${isRally?'gh':'rh'}">Precio fin</th>
-    <th class="${isRally?'gh':'rh'}">Mov %</th>
-    <th class="${isRally?'gh':'rh'}">Ruedas</th>
-    <th class="${isRally?'gh':'rh'}">Semanas</th>
-  </tr></thead>`;
-
-  const mkRow=(seg,i,isRally)=>{
-    const fu=findFollowup(seg,d.wCloses,d.wTimestamps);
-    const mc=isRally?'mov-up':'mov-down',sc=isRally?'mov-down':'mov-up';
-    const lbl=isRally?`Rally ${fPct(seg.pct)}`:`Caída ${fPct(seg.pct)}`;
-    const slbl=isRally?'↳ derrape':'↳ rebote';
-    let h=`<tr class="main-row">
-      <td>${i+1}</td><td class="${mc}">${lbl}</td>
-      <td>${seg.from} → ${seg.to}</td>
-      <td>${fP(seg.priceFrom)}</td><td class="${mc}">${fP(seg.priceTo)}</td>
-      <td class="${mc}">${fPct(seg.pct)}</td><td>${seg.bars}</td><td>${seg.weeks}</td>
-    </tr>`;
-    if(fu)h+=`<tr class="sub-row">
-      <td></td><td class="${sc}">${slbl}</td>
-      <td>${fu.from} → ${fu.to}</td>
-      <td>${fP(fu.priceFrom)}</td><td>${fP(fu.priceTo)}</td>
-      <td class="${sc}">${fPct(fu.pct)}</td><td>${fu.bars}</td><td>${fu.weeks}</td>
-    </tr>`;
-    return h;
-  };
-
-  const avg=arr=>arr.length?+(arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1):null;
-  const med=arr=>{if(!arr.length)return null;const s=[...arr].sort((a,b)=>a-b);const m=Math.floor(s.length/2);return s.length%2?+s[m].toFixed(1):+((s[m-1]+s[m])/2).toFixed(1);};
-
-  const sit=d.situation;
-  let sitHtml='';
-  if(sit&&sit.lastPeak&&sit.lastValley){
-    const curDrop=((sit.lastPrice/sit.lastPeak.price)-1)*100;
-    const curRally=((sit.lastPrice/sit.lastValley.price)-1)*100;
-    const wksPeak=((Date.now()/1000-sit.lastPeak.ts)/(7*24*3600)).toFixed(0);
-    const wksValley=((Date.now()/1000-sit.lastValley.ts)/(7*24*3600)).toFixed(0);
-    const worstDrop=drops.length?drops[drops.length-1].pct:null;
-    sitHtml=`<div class="eco-current">
-      <div class="eco-current-title">— SITUACIÓN ACTUAL — ${fP(sit.lastPrice)}</div>
-      <div style="margin-bottom:4px;">
-        <span class="eco-lbl">Desde pico</span>
-        <span style="color:#fff;font-weight:700;">$${sit.lastPeak.price.toFixed(2)}</span>
-        <span style="color:var(--text3);"> (${fmtDate(sit.lastPeak.ts)})</span>
-        <span style="${clr(curDrop)};font-weight:700;"> → ${fPct(curDrop)}</span>
-        <span style="color:var(--text3);"> en ${wksPeak} semanas</span>
-        ${sit.percentile!==null?`<span style="color:var(--text3);"> · percentil ${sit.percentile} vs caídas históricas</span>`:''}
-        ${worstDrop?`<span style="color:var(--text3);"> (máx. ${fPct(worstDrop)})</span>`:''}
-      </div>
-      <div style="margin-bottom:4px;">
-        <span class="eco-lbl">Desde valle</span>
-        <span style="color:#fff;font-weight:700;">$${sit.lastValley.price.toFixed(2)}</span>
-        <span style="color:var(--text3);"> (${fmtDate(sit.lastValley.ts)})</span>
-        <span style="${clr(curRally)};font-weight:700;"> → ${fPct(curRally)}</span>
-        <span style="color:var(--text3);"> en ${wksValley} semanas</span>
-      </div>
-      ${sit.similarFwd?`
-      <div style="margin-top:6px;margin-bottom:4px;">
-        <span class="eco-lbl">Retornos post-caídas similares</span>
-        <span style="color:var(--text3);">(${sit.similarFwd.n} episodios)</span>
-      </div>
-      <div class="eco-fwd">
-        <div class="eco-fwd-item"><div class="eco-fwd-lbl">+10 RUEDAS</div><div class="eco-fwd-val" style="${clr(sit.similarFwd.r10.avg)}">${sit.similarFwd.r10.avg!==null?fPct(sit.similarFwd.r10.avg):'—'}</div><div class="eco-fwd-bull">${sit.similarFwd.r10.bull!==null?sit.similarFwd.r10.bull+'% alcista':''}</div></div>
-        <div class="eco-fwd-item"><div class="eco-fwd-lbl">+20 RUEDAS</div><div class="eco-fwd-val" style="${clr(sit.similarFwd.r20.avg)}">${sit.similarFwd.r20.avg!==null?fPct(sit.similarFwd.r20.avg):'—'}</div><div class="eco-fwd-bull">${sit.similarFwd.r20.bull!==null?sit.similarFwd.r20.bull+'% alcista':''}</div></div>
-        <div class="eco-fwd-item"><div class="eco-fwd-lbl">+40 RUEDAS</div><div class="eco-fwd-val" style="${clr(sit.similarFwd.r40.avg)}">${sit.similarFwd.r40.avg!==null?fPct(sit.similarFwd.r40.avg):'—'}</div><div class="eco-fwd-bull">${sit.similarFwd.r40.bull!==null?sit.similarFwd.r40.bull+'% alcista':''}</div></div>
-      </div>`:''}
-    </div>`;
-  }
-
-  return`
-    <div class="eco-section">
-      <div class="eco-hd"><span class="eco-hd-up">▲</span><span class="eco-hd-label-up">TOP 5 RALLIES HISTÓRICOS</span></div>
-      <table class="eco-table">${mkHeader(true)}<tbody>${rallies.map((r,i)=>mkRow(r,i,true)).join('')}</tbody></table>
-    </div>
-    <hr class="eco-divider"/>
-    <div class="eco-section">
-      <div class="eco-hd"><span class="eco-hd-down">▼</span><span class="eco-hd-label-down">TOP 5 CAÍDAS HISTÓRICAS</span></div>
-      <table class="eco-table">${mkHeader(false)}<tbody>${drops.map((r,i)=>mkRow(r,i,false)).join('')}</tbody></table>
-    </div>
-    <hr class="eco-divider"/>
-    <div class="eco-section">
-      <div class="eco-stats">
-        <div class="eco-stats-row"><span class="eco-lbl">Rallies:</span> promedio <span style="color:var(--green);font-weight:700;">${fPct(avg(rallies.map(r=>r.pct)))}</span> &nbsp; mediana <span style="color:var(--green);font-weight:700;">${fPct(med(rallies.map(r=>r.pct)))}</span> &nbsp; duración prom <span style="color:#fff;">${avg(rallies.map(r=>r.bars))!==null?avg(rallies.map(r=>r.bars)).toFixed(0):'—'} ruedas (${avg(rallies.map(r=>r.weeks))!==null?avg(rallies.map(r=>r.weeks)).toFixed(1):'—'} sem)</span></div>
-        <div class="eco-stats-row"><span class="eco-lbl">Caídas:</span> &nbsp;promedio <span style="color:var(--red);font-weight:700;">${fPct(avg(drops.map(r=>r.pct)))}</span> &nbsp; mediana <span style="color:var(--red);font-weight:700;">${fPct(med(drops.map(r=>r.pct)))}</span> &nbsp; duración prom <span style="color:#fff;">${avg(drops.map(r=>r.bars))!==null?avg(drops.map(r=>r.bars)).toFixed(0):'—'} ruedas (${avg(drops.map(r=>r.weeks))!==null?avg(drops.map(r=>r.weeks)).toFixed(1):'—'} sem)</span></div>
-      </div>
-    </div>
-    ${sitHtml}`;
-}
 
 // ── DETAIL & FULLSCREEN ──
 async function fetchTargets(ticker){
@@ -2104,9 +1865,6 @@ function openDetail(ticker){
   document.getElementById('dTVBtn').onclick=()=>window.open(`https://www.tradingview.com/chart/?symbol=${ticker}&interval=W`,'_blank');
   document.getElementById('d52w').innerHTML=d.high52&&d.low52?`en el último año: <span>$${d.low52.toFixed(2)}</span> — <span>$${d.high52.toFixed(2)}</span>`:'';
   document.getElementById('dFund').innerHTML=buildFundHtml(d);
-  document.getElementById('dEco').innerHTML=d.ecoReady
-    ? buildEcoHtml(d)
-    : '<div class="loading-msg" style="color:var(--amber);">⏳ Calculando análisis econométrico...</div>';
   // Price targets — load async
   const targetsEl=document.getElementById('dTargets');
   targetsEl.innerHTML='<div style="font-size:11px;color:var(--text3);padding:6px 0;">⏳ Cargando price targets...</div>';
@@ -2123,15 +1881,10 @@ function openFullscreen(){
     <span style="font-size:24px;font-weight:700;color:${up?'var(--green)':'var(--red)'};">${fP(d.price)}</span>
     <span style="font-size:16px;font-weight:700;${up?'color:var(--green)':'color:var(--red)'};">${fPct(d.chgPct)} hoy</span>
     <span style="color:var(--text3);">|</span>
-    <span class="d-52w">${d.high52&&d.low52?`en el último año: <span style="color:#fff;font-weight:700;">$${d.low52.toFixed(2)}</span> — <span style="color:#fff;font-weight:700;">$${d.high52.toFixed(2)}</span>`:''}</span>
-    <span style="color:var(--text3);">|</span>
-    <span style="color:var(--amber);font-weight:700;">${d.totalPivots||0} min/max locales detectados (6 años)</span>`;
+    <span class="d-52w">${d.high52&&d.low52?`en el último año: <span style="color:#fff;font-weight:700;">$${d.low52.toFixed(2)}</span> — <span style="color:#fff;font-weight:700;">$${d.high52.toFixed(2)}</span>`:''}</span>`;
   document.getElementById('fsFund').innerHTML=buildFundHtml(d);
-  document.getElementById('fsEco').innerHTML=d.ecoReady
-    ? buildEcoHtml(d)
-    : '<div class="loading-msg" style="color:var(--amber);">⏳ Calculando análisis econométrico...</div>';
   document.getElementById('fsOverlay').classList.add('open');
-  renderFsCharts(d.ticker,d.wCloses,d.wTimestamps,d.sharesOutstanding);
+  renderFsCharts(d.ticker,d.wCloses,d.wTimestamps,d.sharesOutstanding,d.peForward,d.peg);
 }
 function closeFullscreen(){
   destroyFsCharts();
