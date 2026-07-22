@@ -445,8 +445,8 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 </div>
 
 <!-- ASSET MODAL (manual holdings: cash, renta fija, real estate, FCI, etc) -->
-<div id="assetModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:200;align-items:center;justify-content:center;">
-  <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:3px;width:420px;max-width:95vw;">
+<div id="assetModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:200;align-items:center;justify-content:center;overflow-y:auto;">
+  <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:3px;width:460px;max-width:95vw;margin:20px auto;">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border2);">
       <h2 id="assetModalTitle" style="font-size:13px;font-weight:700;color:var(--green);letter-spacing:.08em;">// AGREGAR ACTIVO</h2>
       <button onclick="closeAssetModal()" style="background:transparent;border:1px solid var(--border2);color:var(--text3);border-radius:3px;padding:4px 12px;cursor:pointer;font-family:var(--mono);font-size:11px;">✕</button>
@@ -454,14 +454,36 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
     <div class="pf-form">
       <div class="pf-field"><label>NOMBRE</label><input id="assetName" placeholder="ej: Plazo Fijo Galicia"/></div>
       <div class="pf-field"><label>CATEGORÍA</label><select id="assetCategory" style="background:var(--bg3);border:1px solid var(--border2);border-radius:3px;color:#fff;padding:7px 10px;font-family:var(--mono);font-size:12px;"></select></div>
-      <div class="pf-field"><label>VALOR EN USD</label><input id="assetAmount" type="number" min="0" step="any" placeholder="ej: 5000"/></div>
+
+      <div style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.1em;padding:4px 0 2px;border-bottom:1px solid var(--border2);">CARGAR MES</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="pf-field"><label>MES</label><input id="assetMonth" type="month" oninput="autoFetchAssetCCL()"/></div>
+        <div class="pf-field">
+          <label>MONEDA</label>
+          <div class="pf-pills">
+            <button class="pf-pill active" id="assetPillARS" onclick="setAssetCurrency('ARS')">ARS $</button>
+            <button class="pf-pill" id="assetPillUSD" onclick="setAssetCurrency('USD')">USD $</button>
+          </div>
+        </div>
+        <div class="pf-field"><label>MONTO</label><input id="assetAmountInput" type="number" min="0" step="any" placeholder="ej: 6250000" oninput="updateAssetUSD()"/></div>
+        <div class="pf-field" id="assetCCLField"><label>CCL (ARS/USD) <span id="assetCCLStatus" style="color:var(--text3);font-size:9px;"></span></label><input id="assetCCL" type="number" min="0" step="any" placeholder="ej: 1250" oninput="updateAssetUSD()"/></div>
+      </div>
+      <div style="background:var(--bg3);border-radius:3px;padding:10px 14px;border:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:11px;color:var(--text3);">VALOR EN USD</span>
+        <span id="assetUSDDisplay" style="font-size:16px;font-weight:700;color:var(--green);">—</span>
+      </div>
       <input type="hidden" id="assetId"/>
+
+      <div id="assetHistoryWrap" style="display:none;">
+        <div style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.1em;padding:4px 0 2px;border-bottom:1px solid var(--border2);">HISTORIAL — click en un mes para editarlo</div>
+        <div id="assetHistoryList" style="max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>
+      </div>
     </div>
     <div class="mfoot" style="justify-content:space-between;">
-      <button id="assetDeleteBtn" onclick="deleteAsset()" style="display:none;background:transparent;border:1px solid var(--red);color:var(--red);border-radius:3px;padding:5px 14px;cursor:pointer;font-family:var(--mono);font-size:11px;font-weight:700;">ELIMINAR</button>
+      <button id="assetDeleteBtn" onclick="deleteAsset()" style="display:none;background:transparent;border:1px solid var(--red);color:var(--red);border-radius:3px;padding:5px 14px;cursor:pointer;font-family:var(--mono);font-size:11px;font-weight:700;">ELIMINAR ACTIVO</button>
       <div style="display:flex;gap:8px;margin-left:auto;">
         <button class="btn" onclick="closeAssetModal()">CANCELAR</button>
-        <button class="btn primary" onclick="saveAsset()">GUARDAR</button>
+        <button class="btn primary" onclick="saveAsset()">GUARDAR MES</button>
       </div>
     </div>
   </div>
@@ -1747,13 +1769,14 @@ const signCls=v=>v===null?'neu':parseFloat(v)>0?'up':parseFloat(v)<0?'down':'neu
 // ── RENDER TABLE ──
 // Sector map
 const SECTORS={
+  'Índices':       ['SPY','BRKB'],
   'Microchips':    ['NVDA','AMD','INTC','TSM'],
   'Tecnología':    ['MSFT','AAPL','GOOG','ADBE','META','GLOB','NFLX'],
   'E-commerce':    ['AMZN','MELI','SHOP','JD','BABA'],
   'Fintech/Pagos': ['PYPL','SQ','COIN','V','MA','NU','HOOD'],
   'Movilidad':     ['UBER','TSLA','RACE','NIO'],
   'Salud':         ['UNH','PFE'],
-  'Bancos':        ['JPM','BAC','BRKB'],
+  'Bancos':        ['JPM','BAC'],
   'Petroleras':    ['VIST','PBR','YPF','XOM'],
   'Consumo':       ['NKE','KHC'],
   'Otros':         [],
@@ -2627,24 +2650,116 @@ function setTickerCategory(ticker,catId){
 }
 
 // Manual asset modal (cash, renta fija, real estate, FCI, etc)
+let assetCurrency='ARS';
+function currentMonthStr(){return new Date().toISOString().slice(0,7);}
+function assetLatestValue(a){
+  if(!a.history||!a.history.length)return 0;
+  return[...a.history].sort((x,y)=>x.month.localeCompare(y.month)).slice(-1)[0].amountUSD;
+}
+function setAssetCurrency(cur){
+  assetCurrency=cur;
+  document.getElementById('assetPillARS').classList.toggle('active',cur==='ARS');
+  document.getElementById('assetPillUSD').classList.toggle('active',cur==='USD');
+  document.getElementById('assetCCLField').style.display=cur==='ARS'?'':'none';
+  updateAssetUSD();
+}
+function updateAssetUSD(){
+  const amount=parseFloat(document.getElementById('assetAmountInput').value);
+  const disp=document.getElementById('assetUSDDisplay');
+  if(isNaN(amount)){disp.textContent='—';return;}
+  if(assetCurrency==='USD'){
+    disp.textContent='$'+amount.toFixed(2)+' USD';
+  }else{
+    const ccl=parseFloat(document.getElementById('assetCCL').value);
+    if(!isNaN(ccl)&&ccl>0){
+      disp.textContent='$'+(amount/ccl).toFixed(2)+' USD';
+    }else{
+      disp.textContent='—';
+    }
+  }
+}
+async function autoFetchAssetCCL(){
+  if(assetCurrency!=='ARS')return;
+  const month=document.getElementById('assetMonth').value; // YYYY-MM
+  if(!month)return;
+  const status=document.getElementById('assetCCLStatus');
+  const cclInput=document.getElementById('assetCCL');
+  status.textContent='cargando...';status.style.color='var(--amber)';
+  // Use last day of that month (capped at today) as reference date for the CCL close
+  const [y,m]=month.split('-').map(Number);
+  const lastDay=new Date(Date.UTC(y,m,0));
+  const today=new Date();
+  const refDate=lastDay>today?today:lastDay;
+  const dateStr=refDate.toISOString().slice(0,10);
+  const ccl=await fetchCCL(dateStr);
+  if(ccl){
+    cclInput.value=ccl.toFixed(2);
+    status.textContent='✓ CCL fin de mes';status.style.color='var(--green)';
+    updateAssetUSD();
+  }else{
+    status.textContent='sin datos, cargalo a mano';status.style.color='var(--red)';
+  }
+}
+function renderAssetHistoryList(a){
+  const wrap=document.getElementById('assetHistoryWrap');
+  const list=document.getElementById('assetHistoryList');
+  if(!a||!a.history||!a.history.length){wrap.style.display='none';return;}
+  wrap.style.display='block';
+  const sorted=[...a.history].sort((x,y)=>y.month.localeCompare(x.month));
+  list.innerHTML=sorted.map(h=>`
+    <div onclick="loadAssetMonth('${a.id}','${h.month}')" style="display:flex;justify-content:space-between;align-items:center;background:var(--bg3);border:1px solid var(--border2);border-radius:3px;padding:5px 10px;cursor:pointer;font-size:11px;">
+      <span>${h.month}</span>
+      <span style="display:flex;align-items:center;gap:8px;">
+        <span style="color:var(--green);">$${h.amountUSD.toLocaleString(undefined,{maximumFractionDigits:0})}</span>
+        <button onclick="event.stopPropagation();deleteAssetMonth('${a.id}','${h.month}')" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:11px;">✕</button>
+      </span>
+    </div>`).join('');
+}
+function loadAssetMonth(id,month){
+  const a=otherAssets.find(x=>x.id===id);
+  if(!a)return;
+  const h=a.history.find(x=>x.month===month);
+  if(!h)return;
+  document.getElementById('assetMonth').value=month;
+  setAssetCurrency('USD');
+  document.getElementById('assetAmountInput').value=h.amountUSD;
+  updateAssetUSD();
+}
+function deleteAssetMonth(id,month){
+  const a=otherAssets.find(x=>x.id===id);
+  if(!a)return;
+  if(!confirm('¿Eliminar el valor cargado para '+month+'?'))return;
+  a.history=a.history.filter(h=>h.month!==month);
+  saveOtherAssets();
+  renderAssetHistoryList(a);
+  renderComposition();
+}
+
 function openAssetModal(id=null){
   const sel=document.getElementById('assetCategory');
   sel.innerHTML=pfCategories.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  document.getElementById('assetMonth').value=currentMonthStr();
+  document.getElementById('assetAmountInput').value='';
+  document.getElementById('assetCCL').value='';
+  document.getElementById('assetUSDDisplay').textContent='—';
+  setAssetCurrency('ARS');
   if(id){
     const a=otherAssets.find(x=>x.id===id);
     if(!a)return;
-    document.getElementById('assetModalTitle').textContent='// EDITAR ACTIVO';
+    document.getElementById('assetModalTitle').textContent='// '+a.name.toUpperCase();
     document.getElementById('assetId').value=a.id;
     document.getElementById('assetName').value=a.name;
     document.getElementById('assetCategory').value=a.categoryId||pfCategories[0].id;
-    document.getElementById('assetAmount').value=a.amountUSD;
     document.getElementById('assetDeleteBtn').style.display='block';
+    renderAssetHistoryList(a);
+    autoFetchAssetCCL();
   }else{
     document.getElementById('assetModalTitle').textContent='// AGREGAR ACTIVO';
     document.getElementById('assetId').value='';
     document.getElementById('assetName').value='';
-    document.getElementById('assetAmount').value='';
     document.getElementById('assetDeleteBtn').style.display='none';
+    document.getElementById('assetHistoryWrap').style.display='none';
+    autoFetchAssetCCL();
   }
   document.getElementById('assetModal').style.display='flex';
 }
@@ -2652,21 +2767,34 @@ function closeAssetModal(){document.getElementById('assetModal').style.display='
 function saveAsset(){
   const name=document.getElementById('assetName').value.trim();
   const categoryId=document.getElementById('assetCategory').value;
-  const amountUSD=parseFloat(document.getElementById('assetAmount').value);
+  const month=document.getElementById('assetMonth').value;
+  const amount=parseFloat(document.getElementById('assetAmountInput').value);
   const id=document.getElementById('assetId').value;
-  if(!name||isNaN(amountUSD))return alert('Completá todos los campos');
-  if(id){
-    const a=otherAssets.find(x=>x.id===id);
-    if(a){a.name=name;a.categoryId=categoryId;a.amountUSD=amountUSD;}
+  if(!name||!month||isNaN(amount))return alert('Completá nombre, mes y monto');
+  let amountUSD;
+  if(assetCurrency==='USD'){
+    amountUSD=amount;
   }else{
-    otherAssets.push({id:'asset_'+Date.now(),name,categoryId,amountUSD});
+    const ccl=parseFloat(document.getElementById('assetCCL').value);
+    if(isNaN(ccl)||ccl<=0)return alert('Falta el CCL para convertir a USD');
+    amountUSD=+(amount/ccl).toFixed(2);
   }
+  let a=otherAssets.find(x=>x.id===id);
+  if(!a){
+    a={id:'asset_'+Date.now(),name,categoryId,history:[]};
+    otherAssets.push(a);
+  }else{
+    a.name=name;a.categoryId=categoryId;
+  }
+  const existing=a.history.find(h=>h.month===month);
+  if(existing)existing.amountUSD=amountUSD;
+  else a.history.push({month,amountUSD});
   saveOtherAssets();closeAssetModal();renderComposition();
 }
 function deleteAsset(){
   const id=document.getElementById('assetId').value;
   if(!id)return;
-  if(!confirm('¿Eliminar este activo?'))return;
+  if(!confirm('¿Eliminar este activo y todo su historial?'))return;
   otherAssets=otherAssets.filter(a=>a.id!==id);
   saveOtherAssets();closeAssetModal();renderComposition();
 }
@@ -2700,7 +2828,7 @@ function renderComposition(){
   const tickerVals=getPortfolioTickerValues();
   const holdings=[
     ...tickerVals.map(t=>({name:t.ticker,origin:'PORTFOLIO',categoryId:tickerCategories[t.ticker]||'acciones',value:t.value,isTicker:true,ticker:t.ticker})),
-    ...otherAssets.map(a=>({name:a.name,origin:'MANUAL',categoryId:a.categoryId,value:a.amountUSD,isTicker:false,id:a.id})),
+    ...otherAssets.map(a=>({name:a.name,origin:'MANUAL'+(assetLatestValue(a)?' · '+([...a.history].sort((x,y)=>x.month.localeCompare(y.month)).slice(-1)[0].month):''),categoryId:a.categoryId,value:assetLatestValue(a),isTicker:false,id:a.id})),
   ].filter(h=>h.value!=null&&h.value>0);
 
   const grandTotal=holdings.reduce((a,h)=>a+h.value,0);
@@ -2772,7 +2900,7 @@ function renderComposition(){
       const sectorCell=h.isTicker?`<span style="color:var(--text3);">${getSector(h.ticker)}</span>`:'<span style="color:var(--text3);">—</span>';
       const delBtn=h.isTicker
         ?''
-        :`<button class="btn" onclick="openAssetModal('${h.id}')" style="padding:3px 8px;font-size:10px;">✏</button>`;
+        :`<button class="btn" onclick="openAssetModal('${h.id}')" style="padding:3px 8px;font-size:10px;" title="Actualizar mes / ver historial">📅</button>`;
       return`<tr>
         <td><span class="ts">${h.name}</span></td>
         <td>${catSelect}</td>
