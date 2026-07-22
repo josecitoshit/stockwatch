@@ -146,6 +146,9 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
 .pf-card-label{font-size:10px;color:var(--text3);letter-spacing:.1em;font-weight:700;margin-bottom:6px;}
 .pf-card-val{font-size:18px;font-weight:700;color:#fff;}
 .pf-card-val.up{color:var(--green);}.pf-card-val.down{color:var(--red);}
+.comp-card-val{font-size:24px;font-weight:800;color:#fff;letter-spacing:.01em;}
+.comp-num{font-size:15px;font-weight:700;color:#fff;}
+.comp-num-sm{font-size:13px;font-weight:700;color:#fff;}
 .pf-table{width:100%;border-collapse:collapse;margin-bottom:28px;}
 .pf-table th{padding:7px 10px;text-align:right;font-size:10px;font-weight:700;color:var(--text3);border-bottom:2px solid var(--border2);letter-spacing:.08em;white-space:nowrap;}
 .pf-table th:first-child{text-align:left;}
@@ -426,10 +429,16 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
     </div>
   </div>
 
-  <!-- Sector breakdown for Acciones -->
+  <!-- Sector breakdown -->
   <div id="compSectorBox" class="pf-chart-box" style="margin-bottom:22px;display:none;">
-    <div class="pf-chart-title">ACCIONES POR SECTOR <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0;">— desglose dentro de la categoría Acciones</span></div>
-    <div style="display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start;margin-top:8px;">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+      <div class="pf-chart-title" style="margin:0;">TOTAL DEL PORTFOLIO SEGÚN SECTOR</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
+        <label style="font-size:10px;color:var(--text3);letter-spacing:.08em;">FILTRAR POR CATEGORÍA</label>
+        <select id="compSectorCatFilter" onchange="onSectorFilterChange()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:3px;color:#fff;padding:5px 10px;font-family:var(--mono);font-size:11px;"></select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start;margin-top:12px;">
       <div style="height:220px;position:relative;"><canvas id="compSectorPie"></canvas></div>
       <div id="compSectorBars" style="display:flex;flex-direction:column;gap:8px;padding:4px;"></div>
     </div>
@@ -2658,6 +2667,11 @@ let pfCategories=JSON.parse(localStorage.getItem('pf_categories')||'null')||DEFA
 pfCategories.forEach(c=>{if(c.type!=='fija'&&c.type!=='variable'){const d=DEFAULT_CATEGORIES.find(x=>x.id===c.id);c.type=d?d.type:'variable';}});
 let tickerCategories=JSON.parse(localStorage.getItem('pf_ticker_categories')||'{}');
 let otherAssets=JSON.parse(localStorage.getItem('pf_other_assets')||'[]');
+let compSectorFilter='all';
+function onSectorFilterChange(){
+  compSectorFilter=document.getElementById('compSectorCatFilter').value;
+  renderComposition();
+}
 
 function saveCategories(){localStorage.setItem('pf_categories',JSON.stringify(pfCategories));}
 function saveTickerCategories(){localStorage.setItem('pf_ticker_categories',JSON.stringify(tickerCategories));}
@@ -2942,9 +2956,9 @@ function renderCompositionSnapshots(){
       const miniBar=(s.categories||[]).map(c=>`<span title="${c.name} ${c.pct.toFixed(1)}%" style="display:inline-block;height:8px;width:${Math.max(c.pct,1)}%;background:${c.color};"></span>`).join('');
       return`<tr>
         <td><span class="ts">${s.month}</span></td>
-        <td>${fM(s.grandTotal)}</td>
-        <td style="color:var(--green);">${rfPct.toFixed(1)}%</td>
-        <td style="color:#ff8fa8;">${rvPct.toFixed(1)}%</td>
+        <td class="comp-num">${fM(s.grandTotal)}</td>
+        <td class="comp-num-sm" style="color:var(--green);">${rfPct.toFixed(1)}%</td>
+        <td class="comp-num-sm" style="color:#ff8fa8;">${rvPct.toFixed(1)}%</td>
         <td><div style="display:flex;width:140px;border-radius:3px;overflow:hidden;">${miniBar}</div></td>
         <td><button class="btn" onclick="deleteSnapshot('${s.month}')" style="padding:3px 8px;font-size:10px;color:var(--red);border-color:var(--red);">✕</button></td>
       </tr>`;
@@ -3007,10 +3021,10 @@ function renderComposition(){
   const topCat=catRows[0];
   const numCats=catRows.length;
   summary.innerHTML=`
-    <div class="pf-card"><div class="pf-card-label">VALOR TOTAL CARTERA</div><div class="pf-card-val">${fM(grandTotal)}</div></div>
-    <div class="pf-card"><div class="pf-card-label">CATEGORÍA CON MÁS PESO</div><div class="pf-card-val" style="color:${topCat?.color||'#fff'};font-size:16px;">${topCat?topCat.name+' · '+topCat.pct.toFixed(1)+'%':'—'}</div></div>
-    <div class="pf-card"><div class="pf-card-label">CANTIDAD DE ACTIVOS</div><div class="pf-card-val">${holdings.length}</div></div>
-    <div class="pf-card"><div class="pf-card-label">CATEGORÍAS EN USO</div><div class="pf-card-val">${numCats}</div></div>`;
+    <div class="pf-card"><div class="pf-card-label">VALOR TOTAL CARTERA</div><div class="comp-card-val">${fM(grandTotal)}</div></div>
+    <div class="pf-card"><div class="pf-card-label">CATEGORÍA CON MÁS PESO</div><div class="comp-card-val" style="color:${topCat?.color||'#fff'};font-size:20px;">${topCat?topCat.name+' · '+topCat.pct.toFixed(1)+'%':'—'}</div></div>
+    <div class="pf-card"><div class="pf-card-label">CANTIDAD DE ACTIVOS</div><div class="comp-card-val">${holdings.length}</div></div>
+    <div class="pf-card"><div class="pf-card-label">CATEGORÍAS EN USO</div><div class="comp-card-val">${numCats}</div></div>`;
 
   // Renta Fija vs Renta Variable
   const rfvTotals={fija:0,variable:0};
@@ -3028,9 +3042,9 @@ function renderComposition(){
     const val=rfvTotals[d.key]||0;
     const pct=grandTotal>0?(val/grandTotal)*100:0;
     return`<div style="flex:1;min-width:200px;">
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px;">
-        <span style="color:#fff;font-weight:700;">${d.label}</span>
-        <span style="color:var(--text3);">${fM(val)} · ${pct.toFixed(1)}%</span>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+        <span style="color:#fff;font-weight:700;font-size:13px;">${d.label}</span>
+        <span class="comp-num" style="color:${d.color};">${fM(val)} <span style="font-size:15px;">· ${pct.toFixed(1)}%</span></span>
       </div>
       <div style="background:var(--bg3);border-radius:5px;height:10px;overflow:hidden;">
         <div style="width:${pct}%;height:100%;background:${d.color};"></div>
@@ -3056,9 +3070,9 @@ function renderComposition(){
   const barsWrap=document.getElementById('compBarsWrap');
   barsWrap.innerHTML=catRows.map(c=>`
     <div>
-      <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;">
-        <span style="color:#fff;">${c.name}</span>
-        <span style="color:var(--text3);">${fM(c.value)} · ${c.pct.toFixed(1)}%</span>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;">
+        <span style="color:#fff;font-weight:700;font-size:12px;">${c.name}</span>
+        <span class="comp-num-sm" style="color:${c.color};">${fM(c.value)} · ${c.pct.toFixed(1)}%</span>
       </div>
       <div style="background:var(--bg3);border-radius:4px;height:8px;overflow:hidden;">
         <div style="width:${c.pct}%;height:100%;background:${c.color};"></div>
@@ -3088,28 +3102,41 @@ function renderComposition(){
         <td>${catSelect}</td>
         <td>${sectorCell}</td>
         <td style="color:var(--text3);font-size:10px;">${h.origin}</td>
-        <td>${fM(h.value)}</td>
-        <td style="color:var(--text2);">${pctTotal.toFixed(1)}%</td>
-        <td style="color:var(--text2);">${pctCat.toFixed(1)}%</td>
+        <td class="comp-num">${fM(h.value)}</td>
+        <td class="comp-num-sm" style="color:#e8e8e8;">${pctTotal.toFixed(1)}%</td>
+        <td class="comp-num-sm" style="color:#e8e8e8;">${pctCat.toFixed(1)}%</td>
         <td>${delBtn}</td>
       </tr>`;
     }).join('');
   }
 
-  // Sector breakdown — only for holdings classified as "Acciones" (the default stock category)
-  const accionesHoldings=holdings.filter(h=>h.isTicker&&h.categoryId==='acciones'&&catById('acciones'));
+  // Sector breakdown — total del portfolio, con filtro opcional por categoría
   const sectorBox=document.getElementById('compSectorBox');
-  if(accionesHoldings.length){
+  const filterSel=document.getElementById('compSectorCatFilter');
+  filterSel.innerHTML='<option value="all">Todas las categorías</option>'+pfCategories.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  filterSel.value=compSectorFilter;
+  if(filterSel.value!==compSectorFilter){filterSel.value='all';compSectorFilter='all';}
+
+  const sectorHoldings=holdings.filter(h=>{
+    if(compSectorFilter!=='all'){
+      const cid=h.categoryId&&catById(h.categoryId)?h.categoryId:'_none';
+      if(cid!==compSectorFilter)return false;
+    }
+    return true;
+  });
+
+  if(sectorHoldings.length){
     sectorBox.style.display='block';
-    const accionesTotal=accionesHoldings.reduce((a,h)=>a+h.value,0);
+    const filteredTotal=sectorHoldings.reduce((a,h)=>a+h.value,0);
     const sectorTotals={};
-    accionesHoldings.forEach(h=>{
-      const s=getSector(h.ticker);
+    sectorHoldings.forEach(h=>{
+      const s=h.isTicker?getSector(h.ticker):((otherAssets.find(a=>a.id===h.id)?.sector)||'Sin sector');
       sectorTotals[s]=(sectorTotals[s]||0)+h.value;
     });
     const sectorRows=Object.entries(sectorTotals).map(([s,val],i)=>({
-      name:s,value:val,pct:accionesTotal>0?(val/accionesTotal)*100:0,color:PASTEL_CYCLE[i%PASTEL_CYCLE.length],
+      name:s,value:val,pct:filteredTotal>0?(val/filteredTotal)*100:0,color:PASTEL_CYCLE[i%PASTEL_CYCLE.length],
     })).sort((a,b)=>b.value-a.value);
+    const filterLabel=compSectorFilter==='all'?'toda la cartera':(catById(compSectorFilter)?.name||'la categoría elegida');
 
     if(compCharts.sectorPie){compCharts.sectorPie.destroy();compCharts.sectorPie=null;}
     setTimeout(()=>{
@@ -3120,15 +3147,15 @@ function renderComposition(){
         data:{labels:sectorRows.map(s=>s.name),datasets:[{data:sectorRows.map(s=>+s.value.toFixed(2)),backgroundColor:sectorRows.map(s=>s.color),borderWidth:0}]},
         options:{responsive:true,maintainAspectRatio:false,
           plugins:{legend:{display:true,position:'bottom',labels:{font:{size:9},color:'#b0b0b0',boxWidth:8,padding:5}},
-            tooltip:{callbacks:{label:c=>c.label+': '+fM(c.raw)+' ('+(accionesTotal>0?(c.raw/accionesTotal*100).toFixed(1):0)+'% de Acciones)'}}}}
+            tooltip:{callbacks:{label:c=>c.label+': '+fM(c.raw)+' ('+(filteredTotal>0?(c.raw/filteredTotal*100).toFixed(1):0)+'% de '+filterLabel+')'}}}}
       });
     },30);
 
     document.getElementById('compSectorBars').innerHTML=sectorRows.map(s=>`
       <div>
-        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;">
-          <span style="color:#fff;">${s.name}</span>
-          <span style="color:var(--text3);">${fM(s.value)} · ${s.pct.toFixed(1)}%</span>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+          <span style="color:#fff;font-weight:700;font-size:12px;">${s.name}</span>
+          <span class="comp-num-sm" style="color:${s.color};">${fM(s.value)} · ${s.pct.toFixed(1)}%</span>
         </div>
         <div style="background:var(--bg3);border-radius:4px;height:7px;overflow:hidden;">
           <div style="width:${s.pct}%;height:100%;background:${s.color};"></div>
