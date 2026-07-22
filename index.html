@@ -397,12 +397,22 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
     <div id="catChipsWrap" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;"></div>
     <div style="display:flex;gap:8px;margin-top:10px;">
       <input id="newCatName" placeholder="Nueva categoría..." style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:3px;color:#fff;padding:6px 10px;font-family:var(--mono);font-size:11px;" onkeydown="if(event.key==='Enter')addCategory()"/>
+      <select id="newCatType" style="background:var(--bg3);border:1px solid var(--border2);border-radius:3px;color:#fff;padding:6px 10px;font-family:var(--mono);font-size:11px;">
+        <option value="fija">Renta Fija</option>
+        <option value="variable">Renta Variable</option>
+      </select>
       <button class="btn" onclick="addCategory()">+ AGREGAR</button>
     </div>
   </div>
 
   <!-- Summary cards -->
   <div id="compSummary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px;"></div>
+
+  <!-- Renta Fija vs Renta Variable -->
+  <div class="pf-chart-box" style="margin-bottom:22px;">
+    <div class="pf-chart-title">RENTA FIJA VS. RENTA VARIABLE</div>
+    <div id="compRfvWrap" style="display:flex;gap:20px;margin-top:10px;flex-wrap:wrap;"></div>
+  </div>
 
   <!-- Chart + breakdown -->
   <div style="display:grid;grid-template-columns:340px 1fr;gap:16px;margin-bottom:22px;align-items:start;">
@@ -2605,14 +2615,16 @@ function savePf(){localStorage.setItem('pf_positions',JSON.stringify(pfPositions
 
 // ── PORTFOLIO % — COMPOSITION TAB ──
 const DEFAULT_CATEGORIES=[
-  {id:'rentafija',name:'Renta Fija'},
-  {id:'acciones',name:'Acciones'},
-  {id:'cripto',name:'Cripto'},
-  {id:'cash',name:'Cash'},
-  {id:'realestate',name:'Real Estate'},
-  {id:'fci',name:'FCI'},
+  {id:'rentafija',name:'Renta Fija',type:'fija'},
+  {id:'acciones',name:'Acciones',type:'variable'},
+  {id:'cripto',name:'Cripto',type:'variable'},
+  {id:'cash',name:'Cash',type:'fija'},
+  {id:'realestate',name:'Real Estate',type:'variable'},
+  {id:'fci',name:'FCI',type:'fija'},
 ];
 let pfCategories=JSON.parse(localStorage.getItem('pf_categories')||'null')||DEFAULT_CATEGORIES.map((c,i)=>({...c,color:PASTEL_CYCLE[i%PASTEL_CYCLE.length]}));
+// migration: older saved categories may not have a "type" (Renta Fija/Renta Variable) yet
+pfCategories.forEach(c=>{if(c.type!=='fija'&&c.type!=='variable'){const d=DEFAULT_CATEGORIES.find(x=>x.id===c.id);c.type=d?d.type:'variable';}});
 let tickerCategories=JSON.parse(localStorage.getItem('pf_ticker_categories')||'{}');
 let otherAssets=JSON.parse(localStorage.getItem('pf_other_assets')||'[]');
 
@@ -2627,8 +2639,9 @@ function addCategory(){
   const input=document.getElementById('newCatName');
   const name=input.value.trim();
   if(!name)return;
+  const type=document.getElementById('newCatType').value;
   const id='cat_'+Date.now();
-  pfCategories.push({id,name,color:nextCatColor()});
+  pfCategories.push({id,name,type,color:nextCatColor()});
   saveCategories();
   input.value='';
   renderComposition();
@@ -2641,6 +2654,13 @@ function removeCategory(id){
   Object.keys(tickerCategories).forEach(t=>{if(tickerCategories[t]===id)delete tickerCategories[t];});
   otherAssets.forEach(a=>{if(a.categoryId===id)a.categoryId=null;});
   saveCategories();saveTickerCategories();saveOtherAssets();
+  renderComposition();
+}
+function toggleCategoryType(id){
+  const c=catById(id);
+  if(!c)return;
+  c.type=c.type==='fija'?'variable':'fija';
+  saveCategories();
   renderComposition();
 }
 function setTickerCategory(ticker,catId){
@@ -2822,6 +2842,7 @@ function renderComposition(){
     <span style="display:flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border2);border-radius:20px;padding:4px 6px 4px 12px;font-size:11px;">
       <span style="width:8px;height:8px;border-radius:50%;background:${c.color};display:inline-block;"></span>
       ${c.name}
+      <button onclick="toggleCategoryType('${c.id}')" title="Click para cambiar a ${c.type==='fija'?'Renta Variable':'Renta Fija'}" style="background:${c.type==='fija'?'rgba(126,242,163,.15)':'rgba(255,143,168,.15)'};border:1px solid ${c.type==='fija'?'var(--green)':'var(--pink,#ff8fa8)'};color:${c.type==='fija'?'var(--green)':'#ff8fa8'};border-radius:10px;padding:1px 8px;cursor:pointer;font-size:9px;font-weight:700;letter-spacing:.05em;">${c.type==='fija'?'RF':'RV'}</button>
       <button onclick="removeCategory('${c.id}')" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:2px 6px;">✕</button>
     </span>`).join('');
 
@@ -2855,6 +2876,32 @@ function renderComposition(){
     <div class="pf-card"><div class="pf-card-label">CATEGORÍA CON MÁS PESO</div><div class="pf-card-val" style="color:${topCat?.color||'#fff'};font-size:16px;">${topCat?topCat.name+' · '+topCat.pct.toFixed(1)+'%':'—'}</div></div>
     <div class="pf-card"><div class="pf-card-label">CANTIDAD DE ACTIVOS</div><div class="pf-card-val">${holdings.length}</div></div>
     <div class="pf-card"><div class="pf-card-label">CATEGORÍAS EN USO</div><div class="pf-card-val">${numCats}</div></div>`;
+
+  // Renta Fija vs Renta Variable
+  const rfvTotals={fija:0,variable:0};
+  holdings.forEach(h=>{
+    const c=h.categoryId?catById(h.categoryId):null;
+    const t=c?c.type:'variable';
+    rfvTotals[t]=(rfvTotals[t]||0)+h.value;
+  });
+  const rfvWrap=document.getElementById('compRfvWrap');
+  const rfvDefs=[
+    {key:'fija',label:'Renta Fija',color:'var(--green)'},
+    {key:'variable',label:'Renta Variable',color:'#ff8fa8'},
+  ];
+  rfvWrap.innerHTML=rfvDefs.map(d=>{
+    const val=rfvTotals[d.key]||0;
+    const pct=grandTotal>0?(val/grandTotal)*100:0;
+    return`<div style="flex:1;min-width:200px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px;">
+        <span style="color:#fff;font-weight:700;">${d.label}</span>
+        <span style="color:var(--text3);">${fM(val)} · ${pct.toFixed(1)}%</span>
+      </div>
+      <div style="background:var(--bg3);border-radius:5px;height:10px;overflow:hidden;">
+        <div style="width:${pct}%;height:100%;background:${d.color};"></div>
+      </div>
+    </div>`;
+  }).join('');
 
   // Pie chart
   if(compCharts.pie){compCharts.pie.destroy();compCharts.pie=null;}
