@@ -489,7 +489,10 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
     </div>
     <div class="pf-form">
       <div class="pf-field"><label>NOMBRE</label><input id="assetName" placeholder="ej: Plazo Fijo Galicia"/></div>
-      <div class="pf-field"><label>CATEGORÍA</label><select id="assetCategory" style="background:var(--bg3);border:1px solid var(--border2);border-radius:3px;color:#fff;padding:7px 10px;font-family:var(--mono);font-size:12px;"></select></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="pf-field"><label>CATEGORÍA</label><select id="assetCategory" style="background:var(--bg3);border:1px solid var(--border2);border-radius:3px;color:#fff;padding:7px 10px;font-family:var(--mono);font-size:12px;"></select></div>
+        <div class="pf-field"><label>SECTOR (opcional)</label><input id="assetSector" placeholder="ej: Obligaciones Negociables"/></div>
+      </div>
 
       <div style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.1em;padding:4px 0 2px;border-bottom:1px solid var(--border2);">CARGAR MES</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -1818,9 +1821,11 @@ const SECTORS={
   'Otros':         [],
 };
 function getSector(ticker){
+  const norm=t=>(t||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const target=norm(ticker);
   for(const[s,ts] of Object.entries(SECTORS)){
     if(s==='Otros')continue;
-    if(ts.includes(ticker))return s;
+    if(ts.some(t=>norm(t)===target))return s;
   }
   return'Otros';
 }
@@ -2788,6 +2793,7 @@ function openAssetModal(id=null){
   document.getElementById('assetAmountInput').value='';
   document.getElementById('assetCCL').value='';
   document.getElementById('assetUSDDisplay').textContent='—';
+  document.getElementById('assetSector').value='';
   setAssetCurrency('ARS');
   if(id){
     const a=otherAssets.find(x=>x.id===id);
@@ -2796,6 +2802,7 @@ function openAssetModal(id=null){
     document.getElementById('assetId').value=a.id;
     document.getElementById('assetName').value=a.name;
     document.getElementById('assetCategory').value=a.categoryId||pfCategories[0].id;
+    document.getElementById('assetSector').value=a.sector||'';
     document.getElementById('assetDeleteBtn').style.display='block';
     renderAssetHistoryList(a);
     autoFetchAssetCCL();
@@ -2813,6 +2820,7 @@ function closeAssetModal(){document.getElementById('assetModal').style.display='
 function saveAsset(){
   const name=document.getElementById('assetName').value.trim();
   const categoryId=document.getElementById('assetCategory').value;
+  const sector=document.getElementById('assetSector').value.trim();
   const month=document.getElementById('assetMonth').value;
   const amount=parseFloat(document.getElementById('assetAmountInput').value);
   const id=document.getElementById('assetId').value;
@@ -2827,10 +2835,10 @@ function saveAsset(){
   }
   let a=otherAssets.find(x=>x.id===id);
   if(!a){
-    a={id:'asset_'+Date.now(),name,categoryId,history:[]};
+    a={id:'asset_'+Date.now(),name,categoryId,sector,history:[]};
     otherAssets.push(a);
   }else{
-    a.name=name;a.categoryId=categoryId;
+    a.name=name;a.categoryId=categoryId;a.sector=sector;
   }
   const existing=a.history.find(h=>h.month===month);
   if(existing)existing.amountUSD=amountUSD;
@@ -3071,7 +3079,7 @@ function renderComposition(){
       const catSelect=h.isTicker
         ?`<select onchange="setTickerCategory('${h.ticker}',this.value)" style="background:var(--bg3);border:1px solid var(--border2);border-radius:3px;color:#fff;padding:3px 6px;font-family:var(--mono);font-size:10px;">${pfCategories.map(c=>`<option value="${c.id}" ${c.id===cid?'selected':''}>${c.name}</option>`).join('')}</select>`
         :`<span style="color:${catById(cid)?.color||'#686868'};">${catById(cid)?.name||'Sin categoría'}</span>`;
-      const sectorCell=h.isTicker?`<span style="color:var(--text3);">${getSector(h.ticker)}</span>`:'<span style="color:var(--text3);">—</span>';
+      const sectorCell=h.isTicker?`<span style="color:var(--text3);">${getSector(h.ticker)}</span>`:`<span style="color:var(--text3);">${(otherAssets.find(a=>a.id===h.id)?.sector)||'—'}</span>`;
       const delBtn=h.isTicker
         ?''
         :`<button class="btn" onclick="openAssetModal('${h.id}')" style="padding:3px 8px;font-size:10px;" title="Actualizar mes / ver historial">📅</button>`;
