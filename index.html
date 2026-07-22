@@ -452,6 +452,32 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
       <tbody id="compTbody"></tbody>
     </table>
   </div>
+
+  <!-- Monthly snapshot / evolution -->
+  <div style="display:flex;align-items:center;gap:10px;margin:26px 0 14px;">
+    <div style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.1em;">// EVOLUCIÓN MENSUAL</div>
+    <button class="btn primary" onclick="saveCompositionSnapshot()" style="margin-left:auto;">📌 GUARDAR FOTO DE ESTE MES</button>
+  </div>
+  <div style="font-size:10px;color:var(--text3);margin:-8px 0 14px;">Guarda el estado actual (valores por categoría + RF/RV) como referencia. Volvé a guardar el mismo mes para actualizarlo.</div>
+
+  <div class="pf-chart-box" style="margin-bottom:18px;">
+    <div class="pf-chart-title">VALOR TOTAL DE LA CARTERA (USD)</div>
+    <div style="height:200px;position:relative;"><canvas id="compEvoChart"></canvas></div>
+  </div>
+
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:11px;white-space:nowrap;">
+      <thead><tr style="color:var(--text3);text-align:left;border-bottom:1px solid var(--border2);">
+        <th style="padding:6px 10px;">MES</th>
+        <th style="padding:6px 10px;">VALOR TOTAL</th>
+        <th style="padding:6px 10px;">RENTA FIJA</th>
+        <th style="padding:6px 10px;">RENTA VARIABLE</th>
+        <th style="padding:6px 10px;">COMPOSICIÓN</th>
+        <th style="padding:6px 10px;"></th>
+      </tr></thead>
+      <tbody id="compSnapTbody"></tbody>
+    </table>
+  </div>
 </div>
 
 <!-- ASSET MODAL (manual holdings: cash, renta fija, real estate, FCI, etc) -->
@@ -2835,6 +2861,107 @@ function getPortfolioTickerValues(){
 }
 
 let compCharts={pie:null};
+
+// Shared calc — used by renderComposition() and by the monthly snapshot feature
+function computeCompositionData(){
+  const tickerVals=getPortfolioTickerValues();
+  const holdings=[
+    ...tickerVals.map(t=>({name:t.ticker,origin:'PORTFOLIO',categoryId:tickerCategories[t.ticker]||'acciones',value:t.value,isTicker:true,ticker:t.ticker})),
+    ...otherAssets.map(a=>({name:a.name,origin:'MANUAL',categoryId:a.categoryId,value:assetLatestValue(a),isTicker:false,id:a.id})),
+  ].filter(h=>h.value!=null&&h.value>0);
+  const grandTotal=holdings.reduce((a,h)=>a+h.value,0);
+  const catTotals={};
+  holdings.forEach(h=>{
+    const cid=h.categoryId&&catById(h.categoryId)?h.categoryId:'_none';
+    catTotals[cid]=(catTotals[cid]||0)+h.value;
+  });
+  const catRows=Object.entries(catTotals).map(([cid,val])=>({
+    id:cid,name:cid==='_none'?'Sin categoría':catById(cid).name,
+    color:cid==='_none'?'#686868':catById(cid).color,
+    value:val,pct:grandTotal>0?(val/grandTotal)*100:0,
+  })).sort((a,b)=>b.value-a.value);
+  const rfvTotals={fija:0,variable:0};
+  holdings.forEach(h=>{
+    const c=h.categoryId?catById(h.categoryId):null;
+    const t=c?c.type:'variable';
+    rfvTotals[t]=(rfvTotals[t]||0)+h.value;
+  });
+  return{holdings,grandTotal,catTotals,catRows,rfvTotals};
+}
+
+// ── MONTHLY SNAPSHOTS ──
+let pfSnapshots=JSON.parse(localStorage.getItem('pf_composition_snapshots')||'[]');
+function saveSnapshots(){localStorage.setItem('pf_composition_snapshots',JSON.stringify(pfSnapshots));}
+
+function saveCompositionSnapshot(){
+  const month=currentMonthStr();
+  const{grandTotal,catRows,rfvTotals}=computeCompositionData();
+  if(grandTotal<=0)return alert('No hay activos cargados todavía para guardar una foto');
+  const existing=pfSnapshots.find(s=>s.month===month);
+  const snap={
+    month,grandTotal,
+    rfv:{fija:rfvTotals.fija||0,variable:rfvTotals.variable||0},
+    categories:catRows.map(c=>({id:c.id,name:c.name,color:c.color,value:c.value,pct:c.pct})),
+  };
+  if(existing){
+    if(!confirm('Ya guardaste una foto de '+month+'. ¿Sobrescribirla con los datos actuales?'))return;
+    Object.assign(existing,snap);
+  }else{
+    pfSnapshots.push(snap);
+  }
+  saveSnapshots();
+  renderCompositionSnapshots();
+  setStatus('foto de '+month+' guardada','ok');
+}
+function deleteSnapshot(month){
+  if(!confirm('¿Eliminar la foto guardada de '+month+'?'))return;
+  pfSnapshots=pfSnapshots.filter(s=>s.month!==month);
+  saveSnapshots();
+  renderCompositionSnapshots();
+}
+
+let compEvoChart=null;
+function renderCompositionSnapshots(){
+  const fM=v=>v>=1e6?'$'+(v/1e6).toFixed(2)+'M':'$'+v.toLocaleString(undefined,{maximumFractionDigits:0});
+  const sorted=[...pfSnapshots].sort((a,b)=>a.month.localeCompare(b.month));
+  const tbody=document.getElementById('compSnapTbody');
+  if(!sorted.length){
+    tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text3);">Todavía no guardaste ninguna foto mensual</td></tr>';
+  }else{
+    tbody.innerHTML=[...sorted].reverse().map(s=>{
+      const rfPct=s.grandTotal>0?(s.rfv.fija/s.grandTotal)*100:0;
+      const rvPct=s.grandTotal>0?(s.rfv.variable/s.grandTotal)*100:0;
+      const miniBar=(s.categories||[]).map(c=>`<span title="${c.name} ${c.pct.toFixed(1)}%" style="display:inline-block;height:8px;width:${Math.max(c.pct,1)}%;background:${c.color};"></span>`).join('');
+      return`<tr>
+        <td><span class="ts">${s.month}</span></td>
+        <td>${fM(s.grandTotal)}</td>
+        <td style="color:var(--green);">${rfPct.toFixed(1)}%</td>
+        <td style="color:#ff8fa8;">${rvPct.toFixed(1)}%</td>
+        <td><div style="display:flex;width:140px;border-radius:3px;overflow:hidden;">${miniBar}</div></td>
+        <td><button class="btn" onclick="deleteSnapshot('${s.month}')" style="padding:3px 8px;font-size:10px;color:var(--red);border-color:var(--red);">✕</button></td>
+      </tr>`;
+    }).join('');
+  }
+
+  if(compEvoChart){compEvoChart.destroy();compEvoChart=null;}
+  const ctx=document.getElementById('compEvoChart')?.getContext('2d');
+  if(ctx&&sorted.length){
+    compEvoChart=new Chart(ctx,{
+      type:'line',
+      data:{labels:sorted.map(s=>s.month),datasets:[{
+        data:sorted.map(s=>+s.grandTotal.toFixed(2)),borderColor:PASTEL.green,borderWidth:2.5,pointRadius:3,fill:true,
+        backgroundColor:(c)=>pastelAreaFill(c.chart.ctx,PASTEL.green,200),tension:0.3,
+      }]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>fM(v.raw)}}},
+        scales:{
+          x:{ticks:{font:{size:9},color:'#686868'},grid:{color:'rgba(255,255,255,0.04)'}},
+          y:{ticks:{font:{size:9},color:'#686868',callback:v=>fM(v)},grid:{color:'rgba(255,255,255,0.04)'},position:'right'},
+        }}
+    });
+  }
+}
+
 function renderComposition(){
   // category chips
   const chipsWrap=document.getElementById('catChipsWrap');
@@ -3003,6 +3130,8 @@ function renderComposition(){
     sectorBox.style.display='none';
     if(compCharts.sectorPie){compCharts.sectorPie.destroy();compCharts.sectorPie=null;}
   }
+
+  renderCompositionSnapshots();
 }
 
 // ── TIR (XIRR) ──
