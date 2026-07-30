@@ -9,7 +9,7 @@
 :root{
   --bg:#080808;--bg2:#0e0e0e;--bg3:#161616;--bg4:#242424;
   --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.16);--border3:rgba(255,255,255,0.26);
-  --text:#f0f0f0;--text2:#cfcfcf;--text3:#8f8f8f;
+  --text:#ffffff;--text2:#e6e6e6;--text3:#aaaaaa;
   --green:#00ff88;--green-bg:rgba(0,255,136,0.12);
   --red:#ff3355;--red-bg:rgba(255,51,85,0.12);
   --amber:#ffbb00;--blue:#33bbff;
@@ -363,7 +363,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
       <th onclick="sortPfTable('cedears')" style="cursor:pointer;">CEDEARs <span class="pf-sort-icon" data-col="cedears"></span></th>
       <th onclick="sortPfTable('price')" style="cursor:pointer;">PRECIO <span class="pf-sort-icon" data-col="price"></span></th>
       <th onclick="sortPfTable('cost')" style="cursor:pointer;">PPC <span class="pf-sort-icon" data-col="cost"></span></th>
-      <th onclick="sortPfTable('wma200')" style="cursor:pointer;">PRECIO 200 WMA <span class="pf-sort-icon" data-col="wma200"></span></th>
+      <th onclick="sortPfTable('wma200')" style="cursor:pointer;">200 WMA <span class="pf-sort-icon" data-col="wma200"></span></th>
       <th onclick="sortPfTable('currentVal')" style="cursor:pointer;">VALOR POSICIÓN <span class="pf-sort-icon" data-col="currentVal"></span></th>
       <th onclick="sortPfTable('pctPortfolio')" style="cursor:pointer;">% PORTFOLIO <span class="pf-sort-icon" data-col="pctPortfolio"></span></th>
       <th onclick="sortPfTable('tir')" style="cursor:pointer;">TIR % <span class="pf-sort-icon" data-col="tir"></span></th>
@@ -3777,13 +3777,13 @@ async function renderPortfolio(){
     <td>${g.cedears??'—'}</td>
     <td>${g.price?'$'+g.price.toFixed(2):'—'}</td>
     <td>$${g.cost.toFixed(2)}</td>
-    <td style="color:var(--text2);">${g.wma200?'$'+g.wma200.toFixed(2):'—'}</td>
+    <td style="color:${g.wma200==null?'var(--text2)':g.wma200>g.cost?'var(--green)':g.wma200<g.cost?'var(--red)':'var(--text2)'};">${g.wma200?'$'+g.wma200.toFixed(2):'—'}</td>
     <td>${g.currentVal?fM(g.currentVal):'—'}</td>
     <td style="color:var(--text2);">${g.pctPortfolio!=null?g.pctPortfolio.toFixed(1)+'%':'—'}</td>
     <td style="font-weight:500;color:${g.tir==null?'var(--text2)':g.tir>=0?'var(--green)':'var(--red)'};" title="TIR anualizada (XIRR)">${g.tir!=null?(g.tir*100>=0?'+':'')+(g.tir*100).toFixed(2)+'%':'—'}</td>
     <td style="font-weight:500;color:${g.plPct===null?'var(--text2)':g.plPct>=0?'var(--green)':'var(--red)'};">${g.plPct!==null?(g.plPct>=0?'+':'')+g.plPct.toFixed(2)+'%':'—'}</td>
     <td style="font-weight:500;color:${g.plDol===null?'var(--text2)':g.plDol>=0?'var(--green)':'var(--red)'};">${g.plDol!==null?fD(g.plDol):'—'}</td>
-    <td style="font-weight:500;color:${g.realizedPL>=0?'var(--green)':'var(--red)'};" title="Ganancias/pérdidas realizadas históricas (ventas + dividendos) de este ticker">${fD(g.realizedPL)}</td>
+    <td style="font-weight:500;color:${g.realizedPL>0?'var(--green)':g.realizedPL<0?'var(--red)':'var(--text2)'};" title="Ganancias/pérdidas realizadas históricas (ventas + dividendos) de este ticker">${fD(g.realizedPL)}</td>
     <td onclick="event.stopPropagation()"><button class="btn" onclick="deletePfTicker('${g.ticker}')" style="padding:3px 8px;font-size:10px;color:var(--red);border-color:var(--red);">✕</button></td>
   </tr>`).join('');
 
