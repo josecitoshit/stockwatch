@@ -363,7 +363,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
       <th onclick="sortPfTable('cedears')" style="cursor:pointer;">CEDEARs <span class="pf-sort-icon" data-col="cedears"></span></th>
       <th onclick="sortPfTable('price')" style="cursor:pointer;">PRECIO <span class="pf-sort-icon" data-col="price"></span></th>
       <th onclick="sortPfTable('cost')" style="cursor:pointer;">PPC <span class="pf-sort-icon" data-col="cost"></span></th>
-      <th onclick="sortPfTable('wma200')" style="cursor:pointer;">200 WMA <span class="pf-sort-icon" data-col="wma200"></span></th>
+      <th onclick="sortPfTable('wma200')" style="cursor:pointer;">200 EMA <span class="pf-sort-icon" data-col="wma200"></span></th>
       <th onclick="sortPfTable('currentVal')" style="cursor:pointer;">VALOR POSICIÓN <span class="pf-sort-icon" data-col="currentVal"></span></th>
       <th onclick="sortPfTable('pctPortfolio')" style="cursor:pointer;">% PORTFOLIO <span class="pf-sort-icon" data-col="pctPortfolio"></span></th>
       <th onclick="sortPfTable('tir')" style="cursor:pointer;">TIR % <span class="pf-sort-icon" data-col="tir"></span></th>
@@ -1679,12 +1679,14 @@ async function startLoad(){
       const ema20WA=calcEMA(wc,20);
       const sma20WA=calcSMA(wc,20);
       const sma200WA=calcSMA(wc,200);
+      const ema200WA=calcEMA(wc,200);
       const rsiWA=wc.length>15?calcRSI(wc):[];
       const macdWO=wc.length>30?calcMACD(wc):{macd:[],signal:[],hist:[]};
       const macdWLast=last(macdWO.macd),macdSigWLast=last(macdWO.signal);
       const macdHist=(macdWLast!=null&&macdSigWLast!=null)?+(macdWLast-macdSigWLast).toFixed(3):null;
       const sma20W=last(sma20WA);
       const sma200W=last(sma200WA);
+      const ema200W=last(ema200WA);
       const sma20WDev=(price&&sma20W)?((price/sma20W)-1)*100:null;
       const sma200WDev=(price&&sma200W)?((price/sma200W)-1)*100:null;
       // vs S&P500 last 20 weeks
@@ -1720,7 +1722,7 @@ async function startLoad(){
 
       stockData[ticker]={
         ticker,price,chg,chgPct,high52,low52,distHigh52,distLow52,
-        sma20W,sma20WDev,sma200W,sma200WDev,vsSP500,relVol,
+        sma20W,sma20WDev,sma200W,sma200WDev,ema200W,vsSP500,relVol,
         pe,pb,peForward,peg,roe,roa,fcfYield,divYield,eps,marketCap,shortFloat,
         rsiW:last(rsiWA),macdW:last(macdWO.macd),macdSigW:last(macdWO.signal),macdHist,
         wCloses:wc,wTimestamps:wk.t,sharesOutstanding,
@@ -3720,7 +3722,7 @@ async function renderPortfolio(){
     const cfs=buildCashflowsForTicker(g.ticker);
     if(g.currentVal)cfs.push({date:todayStr,amount:g.currentVal});
     const tir=xirr(cfs);
-    const wma200=stockData[g.ticker]?.sma200W??null;
+    const wma200=stockData[g.ticker]?.ema200W??null;
     const realizedPL=realizedEvents.filter(e=>e.ticker===g.ticker).reduce((a,e)=>a+(e.amtUSD||0),0);
     return{...g,cost:avgCostPerShare,plDol,plPct,tir,wma200,realizedPL};
   });
@@ -3788,7 +3790,12 @@ async function renderPortfolio(){
     <td>${g.cedears??'—'}</td>
     <td>${g.price?'$'+g.price.toFixed(2):'—'}</td>
     <td>$${Math.round(g.cost).toLocaleString('en-US')}</td>
-    <td style="color:${g.wma200==null||!g.price?'var(--text2)':g.wma200>g.price?'var(--red)':g.wma200<g.price?'var(--green)':'var(--text2)'};">${g.wma200?'$'+Math.round(g.wma200).toLocaleString('en-US'):'—'}</td>
+    <td style="color:${g.wma200==null||!g.price?'var(--text2)':g.wma200>g.price?'var(--red)':g.wma200<g.price?'var(--green)':'var(--text2)'};">${(()=>{
+      if(!g.wma200)return'—';
+      const pct=g.price?((g.price/g.wma200-1)*100):null;
+      const pctStr=pct!=null?(pct>=0?'+':'')+pct.toFixed(1)+'%':'—';
+      return'$'+Math.round(g.wma200).toLocaleString('en-US')+' ('+pctStr+')';
+    })()}</td>
     <td>${g.currentVal?fMInt(g.currentVal):'—'}</td>
     <td style="color:var(--text2);">${g.pctPortfolio!=null?g.pctPortfolio.toFixed(1)+'%':'—'}</td>
     <td style="font-weight:500;color:${g.tir==null?'var(--text2)':g.tir>=0?'var(--green)':'var(--red)'};" title="TIR anualizada (XIRR)">${g.tir!=null?(g.tir*100>=0?'+':'')+(g.tir*100).toFixed(2)+'%':'—'}</td>
@@ -3946,8 +3953,8 @@ function renderPfCharts(rows,allPositions){
 async function refreshPortfolio(){
   setStatus('actualizando precios...','loading');
   const allTickers=[...new Set(pfPositions.map(p=>p.ticker))];
-  // Tickers missing the 200-week moving average need the full weekly history
-  const needsWma=allTickers.filter(t=>!stockData[t]?.sma200W);
+  // Tickers missing the 200-week moving averages need the full weekly history
+  const needsWma=allTickers.filter(t=>!stockData[t]?.ema200W);
   await withLimit(needsWma.map(ticker=>async()=>{
     try{
       const chart=await yahooFetch(ticker);
@@ -3958,9 +3965,11 @@ async function refreshPortfolio(){
       const opens=quotes.open||[],highs=quotes.high||[],lows=quotes.low||[],closes=quotes.close||[],vols=quotes.volume||[];
       const wk=resampleWeekly(ts,opens,highs,lows,closes,vols);
       const sma200W=last(calcSMA(wk.c,200));
+      const ema200W=last(calcEMA(wk.c,200));
       if(!stockData[ticker])stockData[ticker]={ticker,loaded:true};
       stockData[ticker].price=price;
       stockData[ticker].sma200W=sma200W;
+      stockData[ticker].ema200W=ema200W;
       stockData[ticker].loaded=true;
     }catch(e){}
   }),3);
