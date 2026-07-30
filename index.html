@@ -3772,18 +3772,29 @@ async function renderPortfolio(){
     });
   }
 
+  // Whole-dollar formatters for the table (summary cards above keep decimals)
+  const fMInt=v=>{
+    if(v==null)return'—';
+    return v>=1e6?'$'+(v/1e6).toFixed(2)+'M':'$'+Math.round(v).toLocaleString('en-US');
+  };
+  const fDInt=v=>{
+    if(v==null)return'—';
+    const r=Math.round(v);
+    return(r>=0?'+$':'-$')+Math.abs(r).toLocaleString('en-US');
+  };
+
   tbody.innerHTML=groupedRows.map(g=>`<tr onclick="openTickerHistory('${g.ticker}')" style="cursor:pointer;">
     <td><span class="ts">${g.ticker}</span></td>
     <td>${g.cedears??'—'}</td>
     <td>${g.price?'$'+g.price.toFixed(2):'—'}</td>
-    <td>$${g.cost.toFixed(2)}</td>
-    <td style="color:${g.wma200==null?'var(--text2)':g.wma200>g.cost?'var(--green)':g.wma200<g.cost?'var(--red)':'var(--text2)'};">${g.wma200?'$'+g.wma200.toFixed(2):'—'}</td>
-    <td>${g.currentVal?fM(g.currentVal):'—'}</td>
+    <td>$${Math.round(g.cost).toLocaleString('en-US')}</td>
+    <td style="color:${g.wma200==null||!g.price?'var(--text2)':g.wma200>g.price?'var(--red)':g.wma200<g.price?'var(--green)':'var(--text2)'};">${g.wma200?'$'+Math.round(g.wma200).toLocaleString('en-US'):'—'}</td>
+    <td>${g.currentVal?fMInt(g.currentVal):'—'}</td>
     <td style="color:var(--text2);">${g.pctPortfolio!=null?g.pctPortfolio.toFixed(1)+'%':'—'}</td>
     <td style="font-weight:500;color:${g.tir==null?'var(--text2)':g.tir>=0?'var(--green)':'var(--red)'};" title="TIR anualizada (XIRR)">${g.tir!=null?(g.tir*100>=0?'+':'')+(g.tir*100).toFixed(2)+'%':'—'}</td>
     <td style="font-weight:500;color:${g.plPct===null?'var(--text2)':g.plPct>=0?'var(--green)':'var(--red)'};">${g.plPct!==null?(g.plPct>=0?'+':'')+g.plPct.toFixed(2)+'%':'—'}</td>
-    <td style="font-weight:500;color:${g.plDol===null?'var(--text2)':g.plDol>=0?'var(--green)':'var(--red)'};">${g.plDol!==null?fD(g.plDol):'—'}</td>
-    <td style="font-weight:500;color:${g.realizedPL>0?'var(--green)':g.realizedPL<0?'var(--red)':'var(--text2)'};" title="Ganancias/pérdidas realizadas históricas (ventas + dividendos) de este ticker">${fD(g.realizedPL)}</td>
+    <td style="font-weight:500;color:${g.plDol===null?'var(--text2)':g.plDol>=0?'var(--green)':'var(--red)'};">${g.plDol!==null?fDInt(g.plDol):'—'}</td>
+    <td style="font-weight:500;color:${g.realizedPL>0?'var(--green)':g.realizedPL<0?'var(--red)':'var(--text2)'};" title="Ganancias/pérdidas realizadas históricas (ventas + dividendos) de este ticker">${fDInt(g.realizedPL)}</td>
     <td onclick="event.stopPropagation()"><button class="btn" onclick="deletePfTicker('${g.ticker}')" style="padding:3px 8px;font-size:10px;color:var(--red);border-color:var(--red);">✕</button></td>
   </tr>`).join('');
 
