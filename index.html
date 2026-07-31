@@ -366,6 +366,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
       <th onclick="sortPfTable('wma200')" style="cursor:pointer;">200 EMA <span class="pf-sort-icon" data-col="wma200"></span></th>
       <th onclick="sortPfTable('costVal')" style="cursor:pointer;">MONTO INVERTIDO <span class="pf-sort-icon" data-col="costVal"></span></th>
       <th onclick="sortPfTable('currentVal')" style="cursor:pointer;">VALOR POSICIÓN <span class="pf-sort-icon" data-col="currentVal"></span></th>
+      <th>META</th>
       <th onclick="sortPfTable('pctPortfolio')" style="cursor:pointer;">% PORTFOLIO <span class="pf-sort-icon" data-col="pctPortfolio"></span></th>
       <th onclick="sortPfTable('tir')" style="cursor:pointer;">TIR % <span class="pf-sort-icon" data-col="tir"></span></th>
       <th onclick="sortPfTable('plPct')" style="cursor:pointer;">P&L % <span class="pf-sort-icon" data-col="plPct"></span></th>
@@ -373,7 +374,7 @@ tr.sector-hdr td{padding:5px 10px;font-size:10px;font-weight:700;color:var(--tex
       <th onclick="sortPfTable('realizedPL')" style="cursor:pointer;">P&L REALIZADO <span class="pf-sort-icon" data-col="realizedPL"></span></th>
       <th></th>
     </tr></thead>
-    <tbody id="pfTbody"><tr><td colspan="13" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr></tbody>
+    <tbody id="pfTbody"><tr><td colspan="14" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr></tbody>
   </table>
 </div>
 
@@ -791,6 +792,7 @@ let tickers=[...DEFAULT_TICKERS],stockData={},loading=false,selectedTicker=null;
 let sortKey='chgPct',sortDir='desc';
 let pfPositions=JSON.parse(localStorage.getItem('pf_positions')||'[]');
 let realizedEvents=JSON.parse(localStorage.getItem('pf_realized')||'[]');
+let pfGoals=JSON.parse(localStorage.getItem('pf_goals')||'{}'); // {ticker: metaUSD}
 
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 async function withLimit(tasks,limit=3){
@@ -2986,6 +2988,40 @@ let pfCharts={pie:null,line:null};
 
 function savePf(){localStorage.setItem('pf_positions',JSON.stringify(pfPositions));}
 
+// ── META DE INVERSIÓN POR TICKER ──
+function savePfGoals(){localStorage.setItem('pf_goals',JSON.stringify(pfGoals));}
+
+function setPfGoal(ticker){
+  const current=pfGoals[ticker]?String(pfGoals[ticker]):'';
+  const val=prompt(`Meta a invertir en ${ticker} (USD). Dejalo vacío para borrar la meta:`,current);
+  if(val===null)return; // cancelado
+  if(val.trim()===''){delete pfGoals[ticker];}
+  else{
+    const num=parseFloat(val.replace(',','.'));
+    if(!isNaN(num)&&num>0)pfGoals[ticker]=num;
+  }
+  savePfGoals();
+  renderPortfolio();
+}
+
+function buildGoalCell(ticker,currentVal){
+  const goal=pfGoals[ticker];
+  if(!goal){
+    return `<span style="color:var(--text3);">+ meta</span>`;
+  }
+  const pct=currentVal!=null&&goal>0?(currentVal/goal)*100:0;
+  const pctClamped=Math.max(0,Math.min(pct,100));
+  const color=pct>=100?'var(--green)':'var(--blue)';
+  return `
+    <div style="display:flex;flex-direction:column;gap:3px;min-width:100px;">
+      <div style="font-size:11px;"><b style="color:${color};">${pct.toFixed(0)}%</b> <span style="color:var(--text3);font-size:10px;">($${Math.round(currentVal||0).toLocaleString('en-US')}/$${Math.round(goal).toLocaleString('en-US')})</span></div>
+      <div style="width:80px;height:4px;background:var(--bg4);border-radius:2px;overflow:hidden;">
+        <div style="width:${pctClamped}%;height:100%;background:${color};"></div>
+      </div>
+    </div>`;
+}
+
+
 // ── TIR (XIRR) ──
 // Solves for the annualized rate r such that sum(amount_i / (1+r)^(days_i/365)) = 0
 function xirr(cashflows){
@@ -3674,7 +3710,7 @@ async function renderPortfolio(){
   const tbody=document.getElementById('pfTbody');
   const summary=document.getElementById('pfSummary');
   if(!pfPositions.length){
-    tbody.innerHTML='<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr>';
+    tbody.innerHTML='<tr><td colspan="14" style="text-align:center;padding:40px;color:var(--text3);">Agregá tu primera posición con el botón de arriba</td></tr>';
     summary.innerHTML='';
     document.getElementById('pfChartsWrap').style.display='none';
     return;
@@ -3799,6 +3835,7 @@ async function renderPortfolio(){
     })()}</td>
     <td>${g.costVal?fMInt(g.costVal):'—'}</td>
     <td>${g.currentVal?fMInt(g.currentVal):'—'}</td>
+    <td onclick="event.stopPropagation();setPfGoal('${g.ticker}')" style="cursor:pointer;" title="Click para setear/editar la meta de inversión">${buildGoalCell(g.ticker,g.currentVal)}</td>
     <td style="color:var(--text2);">${g.pctPortfolio!=null?g.pctPortfolio.toFixed(1)+'%':'—'}</td>
     <td style="font-weight:500;color:${g.tir==null?'var(--text2)':g.tir>=0?'var(--green)':'var(--red)'};" title="TIR anualizada (XIRR)">${g.tir!=null?(g.tir*100>=0?'+':'')+(g.tir*100).toFixed(2)+'%':'—'}</td>
     <td style="font-weight:500;color:${g.plPct===null?'var(--text2)':g.plPct>=0?'var(--green)':'var(--red)'};">${g.plPct!==null?(g.plPct>=0?'+':'')+g.plPct.toFixed(2)+'%':'—'}</td>
